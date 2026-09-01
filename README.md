@@ -36,12 +36,12 @@ Two windows. On Windows, double-click `run_backend.bat`, then `run_frontend.bat`
 Otherwise:
 
 ```bash
-# window 1 -- the routing engine
+# The routing engine
 cd backend
 pip install -r requirements.txt
 python -m uvicorn app.api:app --reload --port 8000
 
-# window 2 -- the dashboard
+# The dashboard
 cd frontend
 npm install
 npm run dev
