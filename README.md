@@ -32,33 +32,6 @@ ROAD NETWORK + TRAFFIC CONDITIONS
 
 ### The AI core, on its own — no interface, no dependencies
 
-Everything the project is really about runs from the terminal, using only the Python
-standard library:
-
-```bash
-cd backend
-python demo_cli.py
-```
-
-This runs seven demonstrations end to end: the network and its costs, the search finding
-the optimal route, why the goal test belongs where it does, rerouting on congestion,
-rerouting on a blockage, the two kinds of "no route available", and a full dynamic cycle.
-
-Individual demonstrations: `python demo_cli.py --list`, then `python demo_cli.py 2 4`.
-
-### The tests
-
-```bash
-cd backend
-pip install -r requirements.txt      # only pytest is needed for these
-python -m pytest tests -v
-```
-
-71 tests, covering the eight cases required by the specification plus a hand-computed
-expansion trace and a brute-force cross-check against all 182 possible routes.
-
-### The dashboard
-
 Two windows. On Windows, double-click `run_backend.bat`, then `run_frontend.bat`.
 Otherwise:
 
