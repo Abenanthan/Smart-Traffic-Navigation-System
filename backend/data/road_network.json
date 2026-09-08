@@ -1,0 +1,65 @@
+{
+  "metadata": {
+    "name": "Smart Traffic Navigation System - Demonstration Road Network",
+    "description": "A simulated road network used to demonstrate weighted-graph representation and Uniform Cost Search. Traffic levels are SIMULATED, not obtained from any real-time traffic service.",
+    "costModel": "edgeCost = baseTravelTime + trafficDelay",
+    "trafficDelayModel": {
+      "low": 0,
+      "medium": 5,
+      "high": 12,
+      "blocked": "not traversable"
+    },
+    "units": {
+      "distance": "kilometres",
+      "baseTravelTime": "minutes",
+      "trafficDelay": "minutes"
+    },
+    "roadDirection": "bidirectional (each road is traversable in both directions at equal cost)"
+  },
+
+  "nodes": [
+    { "id": "A", "name": "College Main Gate",      "x": 70,  "y": 300 },
+    { "id": "B", "name": "Tech Park Gate",         "x": 180, "y": 150 },
+    { "id": "C", "name": "Market Junction",        "x": 200, "y": 420 },
+    { "id": "D", "name": "City Hospital",          "x": 340, "y": 80  },
+    { "id": "E", "name": "Bus Terminus",           "x": 330, "y": 250 },
+    { "id": "F", "name": "Lake View Circle",       "x": 350, "y": 470 },
+    { "id": "G", "name": "Civic Centre",           "x": 490, "y": 150 },
+    { "id": "H", "name": "Sports Stadium",         "x": 500, "y": 350 },
+    { "id": "I", "name": "Old Town Square",        "x": 620, "y": 480 },
+    { "id": "J", "name": "Central Mall",           "x": 660, "y": 230 },
+    { "id": "K", "name": "Railway Station",        "x": 830, "y": 310 },
+    { "id": "L", "name": "Airport Junction",       "x": 800, "y": 100 },
+    { "id": "M", "name": "Hilltop Observatory",    "x": 870, "y": 500 },
+    { "id": "N", "name": "Green Park Chowk",       "x": 480, "y": 470 },
+    { "id": "Y", "name": "Pelican Island Jetty",   "x": 110, "y": 565 },
+    { "id": "Z", "name": "Island Fishing Village", "x": 245, "y": 575 }
+  ],
+
+  "roads": [
+    { "id": "R01", "from": "A", "to": "B", "distance": 3.2, "baseTravelTime": 6,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R02", "from": "A", "to": "C", "distance": 2.8, "baseTravelTime": 5,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R03", "from": "A", "to": "E", "distance": 4.0, "baseTravelTime": 7,  "traffic": "high",   "roadStatus": "open" },
+    { "id": "R04", "from": "B", "to": "D", "distance": 3.5, "baseTravelTime": 6,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R05", "from": "B", "to": "E", "distance": 2.6, "baseTravelTime": 5,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R06", "from": "C", "to": "E", "distance": 2.9, "baseTravelTime": 6,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R07", "from": "C", "to": "F", "distance": 3.4, "baseTravelTime": 6,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R08", "from": "D", "to": "G", "distance": 4.2, "baseTravelTime": 7,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R09", "from": "D", "to": "L", "distance": 8.0, "baseTravelTime": 13, "traffic": "low",    "roadStatus": "open" },
+    { "id": "R10", "from": "E", "to": "G", "distance": 4.5, "baseTravelTime": 8,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R11", "from": "E", "to": "H", "distance": 4.8, "baseTravelTime": 8,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R12", "from": "F", "to": "H", "distance": 4.0, "baseTravelTime": 7,  "traffic": "high",   "roadStatus": "open" },
+    { "id": "R13", "from": "F", "to": "N", "distance": 3.0, "baseTravelTime": 5,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R14", "from": "G", "to": "J", "distance": 3.6, "baseTravelTime": 6,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R15", "from": "G", "to": "L", "distance": 5.5, "baseTravelTime": 9,  "traffic": "high",   "roadStatus": "open" },
+    { "id": "R16", "from": "H", "to": "J", "distance": 3.8, "baseTravelTime": 7,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R17", "from": "H", "to": "N", "distance": 2.5, "baseTravelTime": 4,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R18", "from": "I", "to": "K", "distance": 5.0, "baseTravelTime": 9,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R19", "from": "I", "to": "M", "distance": 6.5, "baseTravelTime": 11, "traffic": "low",    "roadStatus": "open" },
+    { "id": "R20", "from": "J", "to": "K", "distance": 4.4, "baseTravelTime": 8,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R21", "from": "J", "to": "L", "distance": 4.8, "baseTravelTime": 8,  "traffic": "medium", "roadStatus": "open" },
+    { "id": "R22", "from": "L", "to": "K", "distance": 6.0, "baseTravelTime": 10, "traffic": "low",    "roadStatus": "open" },
+    { "id": "R23", "from": "N", "to": "I", "distance": 3.6, "baseTravelTime": 5,  "traffic": "low",    "roadStatus": "open" },
+    { "id": "R24", "from": "Y", "to": "Z", "distance": 2.0, "baseTravelTime": 4,  "traffic": "low",    "roadStatus": "open" }
+  ]
+}
