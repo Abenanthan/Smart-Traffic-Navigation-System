@@ -15,6 +15,7 @@ import RouteInfoPanel from './components/RouteInfoPanel'
 import RouteInputPanel from './components/RouteInputPanel'
 import TrafficControlPanel from './components/TrafficControlPanel'
 import UCSVisualizationPanel from './components/UCSVisualizationPanel'
+import ThemeToggle from './components/ThemeToggle'
 
 const SIMULATION_INTERVAL_MS = 5000
 
@@ -163,6 +164,7 @@ export default function App() {
             <h1>Smart Traffic Navigation System</h1>
             <p className="subtitle">Uniform Cost Search over a weighted road graph</p>
           </div>
+          <ThemeToggle />
         </header>
         <div style={{ padding: 24 }}>
           {error ? (
@@ -199,7 +201,10 @@ export default function App() {
           <span>least-cost route</span>
         </div>
 
-        <span className="simulated-badge">● Simulated traffic data</span>
+        <div className="header-actions">
+          <span className="simulated-badge">● Simulated traffic data</span>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main className="layout">

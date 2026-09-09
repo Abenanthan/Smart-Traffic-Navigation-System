@@ -21,7 +21,7 @@ const TRAFFIC_COLOUR = {
   low: 'var(--low)',
   medium: 'var(--medium)',
   high: 'var(--high)',
-  blocked: '#716456',
+  blocked: 'var(--blocked)',
 }
 
 export default function NetworkGraph({
@@ -197,7 +197,7 @@ export default function NetworkGraph({
                       !road.traversable
                         ? 'var(--text-dim)'
                         : onRoute
-                          ? '#245A85'
+                          ? 'var(--graph-strong)'
                           : TRAFFIC_COLOUR[road.traffic]
                     }
                   >
@@ -225,11 +225,11 @@ export default function NetworkGraph({
               let stroke = 'var(--border)'
               let radius = 13
 
-              if (wasExplored) { fill = '#E3EDF6'; stroke = '#8BAFCA' }
-              if (inFrontier) { fill = '#FFE5BF'; stroke = '#AD853C' }
-              if (onRoute) { fill = '#DAE9F5'; stroke = 'var(--route)'; radius = 14 }
-              if (isSource || isDestination) { fill = '#DAE9F5'; stroke = '#245A85'; radius = 16 }
-              if (isCurrent) { fill = '#245A85'; stroke = '#245A85'; radius = 17 }
+              if (wasExplored) { fill = 'var(--graph-explored)'; stroke = 'var(--graph-border)' }
+              if (inFrontier) { fill = 'var(--highlight)'; stroke = 'var(--medium)' }
+              if (onRoute) { fill = 'var(--graph-route)'; stroke = 'var(--route)'; radius = 14 }
+              if (isSource || isDestination) { fill = 'var(--graph-route)'; stroke = 'var(--graph-strong)'; radius = 16 }
+              if (isCurrent) { fill = 'var(--graph-strong)'; stroke = 'var(--graph-strong)'; radius = 17 }
 
               return (
                 <g key={node.id}>
@@ -245,7 +245,7 @@ export default function NetworkGraph({
                   <text
                     className="node-id"
                     x={x} y={y}
-                    fill={isCurrent ? '#FFFAF3' : 'var(--text)'}
+                    fill={isCurrent ? 'var(--graph-current-text)' : 'var(--text)'}
                   >
                     {node.id}
                   </text>
@@ -280,7 +280,7 @@ export default function NetworkGraph({
           <span
             className="legend-swatch"
             style={{
-              background: 'repeating-linear-gradient(90deg,#716456 0 4px,transparent 4px 7px)',
+              background: 'repeating-linear-gradient(90deg,var(--blocked) 0 4px,transparent 4px 7px)',
             }}
           />
           blocked
