@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from .models import TrafficLevel
 from .navigation import NavigationSession
 from .weighted_graph import build_graph
+from .real_map.api import router as real_map_router
 
 app = FastAPI(
     title="Smart Traffic Navigation System",
@@ -46,6 +47,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(real_map_router)
 
 
 # ---------------------------------------------------------------------------

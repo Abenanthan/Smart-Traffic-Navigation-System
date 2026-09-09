@@ -1,0 +1,11 @@
+.experience-nav { display: flex; align-items: center; gap: 8px; padding: 10px 28px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.experience-nav a { padding: 10px 16px; color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 650; border-radius: 8px; border: 1px solid transparent; }
+.experience-nav a[aria-current='page'] { background: var(--highlight); color: var(--text); border-color: var(--border); box-shadow: inset 0 -2px var(--primary); }
+.experience-nav a:hover { background: var(--highlight); color: var(--text); }
+.experience-nav a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.experience-nav > span { margin-left: auto; color: var(--text-faint); font-size: 12px; }
+@media (max-width: 700px) {
+  .experience-nav { padding: 10px 16px; }
+  .experience-nav > span { display: none; }
+  .experience-nav a { flex: 1; padding: 10px 8px; text-align: center; font-size: 13px; }
+}

@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
+import ExperienceRouter from './ExperienceRouter.jsx'
 import './styles.css'
 import { applyTheme, readTheme } from './theme'
 
@@ -9,6 +9,6 @@ applyTheme(readTheme())
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ExperienceRouter />
   </React.StrictMode>,
 )

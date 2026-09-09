@@ -166,3 +166,26 @@ Smart Traffic Navigation Sysytem/
 
 Full documentation, including the AI problem formulation, pseudocode, activity diagrams,
 test results and limitations, is in [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md).
+
+---
+
+## New: Real Map Navigation
+
+The original **AI Simulation** remains at `/`. Use the top navigation to open
+**Real Map Navigation** at `/real-map`, an additional page using actual
+OpenStreetMap road geometry for a bounded Besant Nagar, Chennai area.
+
+Both modes use the **same existing UCS engine**. The new page adds a Leaflet map,
+source/destination junction selection, traffic-colored roads, route geometry,
+simulated traffic changes, dynamic rerouting, and blocked-road recovery. It has
+its own traffic/navigation session and does not change the fictional demo's state.
+Traffic is simulated, base travel time assumes 30 km/h with whole-minute rounding,
+and rerouting uses the original selected source. No live traffic, GPS, external
+routing engine, or paid map API is used.
+
+Run `npm install` in `frontend` for the added Leaflet dependency, and restart the
+backend to register the new endpoints if it is not running with `--reload`.
+The original 71 tests are preserved; the real-map extension adds 26 more tests.
+
+See [REAL_MAP_NAVIGATION.md](REAL_MAP_NAVIGATION.md) for architecture, data
+provenance/ODbL attribution, API details, cost assumptions, limitations, and a demo guide.
