@@ -1,6 +1,6 @@
 # Real Map Navigation extension
 
-The original **AI Simulation** is still at `/`. The new **Real Map Navigation**
+The original **Graphical Simulation** is still at `/`. The new **Real Map Navigation**
 page is at `/real-map`. Use the navigation links at the top of either page.
 They are ordinary page links: switching pages stops that page's automatic traffic
 timer, while each backend mode retains its independent in-memory traffic and route.
@@ -154,7 +154,7 @@ no accounts, persistence, or per-user sessions. Restarting the backend resets it
 
 ## Demonstrating it
 
-1. Open **AI Simulation** and demonstrate the original College Main Gate → Railway
+1. Open **Graphical Simulation** and demonstrate the original College Main Gate → Railway
    Station route, UCS replay, traffic changes, and blockage exactly as before.
 2. Open **Real Map Navigation**. The page starts with two named road-junction
    selections in Besant Nagar. Use the dropdowns or **Pick on map**. A click must
@@ -168,7 +168,7 @@ no accounts, persistence, or per-user sessions. Restarting the backend resets it
 6. Reopen roads with **Low**, or reset traffic, to recover the selected route.
 7. Try **Simulate change** and **Auto-simulate**. Some random changes leave the
    optimal route unchanged; this is an expected result, not a failure.
-8. Return to **AI Simulation**: its traffic and active route were not changed by
+8. Return to **Graphical Simulation**: its traffic and active route were not changed by
    real-map operations. The full UCS trace/replay remains on that page.
 
 ## Validation

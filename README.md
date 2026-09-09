@@ -156,7 +156,7 @@ test results and limitations, is in [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPO
 
 ## Real Map Navigation
 
-The original **AI Simulation** remains at `/`. Use the top navigation to open
+The original **Graphical Simulation** remains at `/`. Use the top navigation to open
 **Real Map Navigation** at `/real-map`, an additional page using actual
 OpenStreetMap road geometry for a bounded Besant Nagar, Chennai area.
 

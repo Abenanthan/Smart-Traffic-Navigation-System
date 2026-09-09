@@ -9,7 +9,7 @@ export default function ExperienceRouter() {
   return (
     <>
       <nav className="experience-nav" aria-label="Navigation experiences">
-        <a href="/" aria-current={!realMap ? 'page' : undefined}>AI Simulation</a>
+        <a href="/" aria-current={!realMap ? 'page' : undefined}>Graphical Simulation</a>
         <a href="/real-map" aria-current={realMap ? 'page' : undefined}>Real Map Navigation</a>
         <span>Smart Traffic Navigation · UCS</span>
       </nav>
