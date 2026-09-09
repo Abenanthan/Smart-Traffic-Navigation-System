@@ -18,10 +18,10 @@ const PAD_X = 84
 const PAD_Y = 44
 
 const TRAFFIC_COLOUR = {
-  low: '#34d399',
-  medium: '#fbbf24',
-  high: '#f87171',
-  blocked: '#64748b',
+  low: 'var(--low)',
+  medium: 'var(--medium)',
+  high: 'var(--high)',
+  blocked: '#716456',
 }
 
 export default function NetworkGraph({
@@ -65,7 +65,7 @@ export default function NetworkGraph({
         <svg
           className="graph-svg"
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-          role="img"
+          role="group"
           aria-label="Road network with current traffic costs"
         >
           <defs>
@@ -78,7 +78,7 @@ export default function NetworkGraph({
               markerHeight="5"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#38bdf8" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--route)" />
             </marker>
           </defs>
 
@@ -105,6 +105,16 @@ export default function NetworkGraph({
                   {/* a wide invisible line, so the road is easy to click */}
                   <line
                     className="road-hit"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${road.roadId}: ${a.name} to ${b.name}, ${road.traffic} traffic. Select road.`}
+                    aria-pressed={isSelected}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        onSelectRoad(road.roadId)
+                      }
+                    }}
                     x1={x1} y1={y1} x2={x2} y2={y2}
                     stroke="transparent"
                     strokeWidth="16"
@@ -124,7 +134,7 @@ export default function NetworkGraph({
                     stroke={colour}
                     strokeWidth={isSelected ? 4.5 : onRoute ? 3 : 2}
                     strokeDasharray={road.traversable ? undefined : '7 5'}
-                    opacity={road.traversable ? (onRoute ? 0.95 : 0.5) : 0.55}
+                    opacity={road.traversable ? (onRoute ? 0.95 : 0.8) : 0.8}
                     onClick={() => onSelectRoad(road.roadId)}
                   />
                 </g>
@@ -144,10 +154,10 @@ export default function NetworkGraph({
                   <line
                     key={`${from}-${to}`}
                     x1={px(a)} y1={py(a)} x2={px(b)} y2={py(b)}
-                    stroke="#38bdf8"
+                    stroke="var(--route)"
                     strokeWidth="6"
                     strokeLinecap="round"
-                    opacity="0.32"
+                    opacity="0.85" pointerEvents="none"
                   />
                 )
               })}
@@ -174,8 +184,8 @@ export default function NetworkGraph({
                     width={label.length > 1 ? 24 : 18}
                     height={18}
                     rx="5"
-                    fill="#0a1018"
-                    stroke={onRoute ? '#38bdf8' : '#2a3547'}
+                    fill="var(--bg)"
+                    stroke={onRoute ? 'var(--route)' : 'var(--border)'}
                     strokeWidth={onRoute ? 1.4 : 1}
                     opacity="0.96"
                   />
@@ -185,9 +195,9 @@ export default function NetworkGraph({
                     y={my + 0.5}
                     fill={
                       !road.traversable
-                        ? '#94a3b8'
+                        ? 'var(--text-dim)'
                         : onRoute
-                          ? '#7dd3fc'
+                          ? '#245A85'
                           : TRAFFIC_COLOUR[road.traffic]
                     }
                   >
@@ -211,21 +221,21 @@ export default function NetworkGraph({
               const wasExplored = explored.has(node.id)
               const inFrontier = node.id in frontierCosts
 
-              let fill = '#1c2637'
-              let stroke = '#2a3547'
+              let fill = 'var(--panel)'
+              let stroke = 'var(--border)'
               let radius = 13
 
-              if (wasExplored) { fill = '#1e3a4d'; stroke = '#38bdf877' }
-              if (inFrontier) { fill = '#2a2416'; stroke = '#fbbf2499' }
-              if (onRoute) { fill = '#0c4a6e'; stroke = '#38bdf8'; radius = 14 }
-              if (isSource || isDestination) { fill = '#075985'; stroke = '#7dd3fc'; radius = 16 }
-              if (isCurrent) { fill = '#0ea5e9'; stroke = '#e0f2fe'; radius = 17 }
+              if (wasExplored) { fill = '#E3EDF6'; stroke = '#8BAFCA' }
+              if (inFrontier) { fill = '#FFE5BF'; stroke = '#AD853C' }
+              if (onRoute) { fill = '#DAE9F5'; stroke = 'var(--route)'; radius = 14 }
+              if (isSource || isDestination) { fill = '#DAE9F5'; stroke = '#245A85'; radius = 16 }
+              if (isCurrent) { fill = '#245A85'; stroke = '#245A85'; radius = 17 }
 
               return (
                 <g key={node.id}>
                   {isCurrent && (
                     <circle cx={x} cy={y} r={radius + 6} fill="none"
-                            stroke="#38bdf8" strokeWidth="1.5" opacity="0.5" />
+                            stroke="var(--route)" strokeWidth="1.5" opacity="0.5" />
                   )}
                   <circle
                     className="node-circle"
@@ -235,7 +245,7 @@ export default function NetworkGraph({
                   <text
                     className="node-id"
                     x={x} y={y}
-                    fill={isCurrent || isSource || isDestination ? '#f0f9ff' : '#cbd5e1'}
+                    fill={isCurrent ? '#FFFAF3' : 'var(--text)'}
                   >
                     {node.id}
                   </text>
@@ -247,7 +257,7 @@ export default function NetworkGraph({
                       className="edge-weight"
                       x={x + radius + 12}
                       y={y - radius - 2}
-                      fill="#fbbf24"
+                      fill="var(--medium)"
                     >
                       {frontierCosts[node.id]}
                     </text>
@@ -270,7 +280,7 @@ export default function NetworkGraph({
           <span
             className="legend-swatch"
             style={{
-              background: 'repeating-linear-gradient(90deg,#64748b 0 4px,transparent 4px 7px)',
+              background: 'repeating-linear-gradient(90deg,#716456 0 4px,transparent 4px 7px)',
             }}
           />
           blocked
@@ -278,7 +288,7 @@ export default function NetworkGraph({
         <span className="legend-item">
           <span
             className="legend-swatch"
-            style={{ background: '#38bdf8', height: 5, opacity: 0.5 }}
+            style={{ background: 'var(--route)', height: 5 }}
           />
           selected route
         </span>

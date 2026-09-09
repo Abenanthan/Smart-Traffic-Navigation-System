@@ -16,7 +16,7 @@ export default function RouteInfoPanel({ route }) {
         <div className="empty-state">
           No route selected yet.
           <br />
-          Choose a source and a destination, then select <strong>Find Best Route</strong>.
+          Choose a source and a destination, then select <strong>Find best route</strong>.
         </div>
       </div>
     )
@@ -76,7 +76,8 @@ export default function RouteInfoPanel({ route }) {
           {route.pathNames.join(' → ')}
         </div>
 
-        <table className="legs">
+        <div className="table-scroll">
+        <table className="legs" aria-label="Route costs in minutes">
           <thead>
             <tr>
               <th>Leg</th>
@@ -104,6 +105,7 @@ export default function RouteInfoPanel({ route }) {
             ))}
           </tbody>
         </table>
+        </div>
 
         <div className="cost-formula">
           {route.baseTime} min base travel + {route.totalDelay} min traffic delay ={' '}

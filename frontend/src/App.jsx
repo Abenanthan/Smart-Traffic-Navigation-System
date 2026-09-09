@@ -183,7 +183,7 @@ export default function App() {
         <div>
           <h1>Smart Traffic Navigation System</h1>
           <p className="subtitle">
-            Least-cost route selection by Uniform Cost Search, with dynamic rerouting
+            Find a route, adjust traffic, and explore how Uniform Cost Search works.
           </p>
         </div>
 
@@ -202,7 +202,7 @@ export default function App() {
         <span className="simulated-badge">● Simulated traffic data</span>
       </header>
 
-      <div className="layout">
+      <main className="layout">
         {/* ------------------------------------------------ left column */}
         <div className="col">
           <RouteInputPanel
@@ -242,6 +242,10 @@ export default function App() {
               <h2>Road network</h2>
               <span className="module-tag">Modules 2 &amp; 4 · Weighted graph</span>
             </div>
+            <p className="graph-help">
+              Explore {network.nodes.length} locations and {network.roads.length} roads.
+              Road labels show travel time in minutes.
+            </p>
             <NetworkGraph
               nodes={network.nodes}
               roads={network.roads}
@@ -260,7 +264,7 @@ export default function App() {
           <RouteInfoPanel route={activeRoute} />
           <UCSVisualizationPanel search={search} onStepChange={setSearchState} />
         </div>
-      </div>
+      </main>
 
       <footer className="footer">
         Foundations of Artificial Intelligence — academic project. Traffic conditions are

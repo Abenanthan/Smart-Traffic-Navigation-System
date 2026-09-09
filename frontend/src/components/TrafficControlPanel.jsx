@@ -40,6 +40,7 @@ export default function TrafficControlPanel({
       </div>
 
       <div className="panel-body">
+        <p className="panel-intro">Change traffic on a road to see how the best route changes.</p>
         <div className="field">
           <label htmlFor="road-select">Road</label>
           <select
@@ -68,7 +69,7 @@ export default function TrafficControlPanel({
             </div>
             <div className="row">
               <span>current cost</span>
-              <b style={{ color: road.traversable ? '#38bdf8' : '#f87171' }}>
+              <b style={{ color: road.traversable ? 'var(--accent)' : 'var(--bad)' }}>
                 {road.traversable ? `${road.cost} min` : 'blocked'}
               </b>
             </div>
@@ -76,8 +77,8 @@ export default function TrafficControlPanel({
         )}
 
         <div className="field" style={{ marginTop: 14 }}>
-          <label>Traffic level</label>
-          <div className="level-picker">
+          <div className="control-label" id="traffic-level-label">Traffic level</div>
+          <div className="level-picker" role="group" aria-labelledby="traffic-level-label">
             {LEVELS.map((option) => (
               <button
                 type="button"
@@ -85,7 +86,7 @@ export default function TrafficControlPanel({
                 className={
                   `level-option ${option.value} ${level === option.value ? 'selected' : ''}`
                 }
-                onClick={() => onLevelChange(option.value)}
+                aria-pressed={level === option.value} onClick={() => onLevelChange(option.value)}
               >
                 <span className={`dot ${option.value}`} />
                 {option.label}
@@ -99,7 +100,7 @@ export default function TrafficControlPanel({
 
         <div className="button-row" style={{ marginTop: 12 }}>
           <button type="button" className="primary" onClick={onApply} disabled={busy}>
-            Update Traffic
+            Update traffic
           </button>
           <button
             type="button"
@@ -122,7 +123,7 @@ export default function TrafficControlPanel({
           </span>
           <label className="switch">
             <input
-              type="checkbox"
+              type="checkbox" aria-label="Auto-simulate traffic every 5 seconds"
               checked={autoSimulate}
               onChange={(event) => onAutoSimulateChange(event.target.checked)}
             />

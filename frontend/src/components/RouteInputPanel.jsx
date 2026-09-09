@@ -28,8 +28,9 @@ export default function RouteInputPanel({
       </div>
 
       <div className="panel-body">
+        <p className="panel-intro">Choose two locations. UCS finds the route with the lowest travel time.</p>
         <div className="field">
-          <label htmlFor="source-select">Source</label>
+          <label htmlFor="source-select">Starting location</label>
           <select
             id="source-select"
             className={invalidField === 'source' ? 'invalid' : ''}
@@ -81,7 +82,7 @@ export default function RouteInputPanel({
             onClick={onFindRoute}
             disabled={busy || !source || !destination}
           >
-            {busy ? 'Searching…' : 'Find Best Route'}
+            {busy ? 'Searching…' : 'Find best route'}
           </button>
         </div>
 

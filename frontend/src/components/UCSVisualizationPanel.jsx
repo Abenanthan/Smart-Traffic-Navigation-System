@@ -81,7 +81,7 @@ export default function UCSVisualizationPanel({ search, onStepChange }) {
           onClick={() => { setPlaying(false); setIndex(0) }}
           disabled={atStart}
         >
-          ⏮
+          ↺ Restart
         </button>
         <button
           type="button" className="small ghost"
