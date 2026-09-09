@@ -131,21 +131,6 @@ creates a second, dynamic one.
 
 ---
 
-## A note on UCS and Dijkstra's algorithm
-
-On a finite graph with non-negative edge weights, UCS and Dijkstra's algorithm expand nodes
-in the same order and belong to the same algorithmic family. The difference is one of
-formulation. UCS is posed as a **state-space search** for a single goal: it terminates as
-soon as the goal is expanded and never builds the full shortest-path tree. Dijkstra's is
-normally posed as a single-source shortest-path computation over the whole graph.
-
-This project implements the search formulation, per Russell & Norvig, *Artificial
-Intelligence: A Modern Approach* — an explicit priority queue ordered on g(n), no heuristic,
-the goal test performed on expansion, and no shortest-path library anywhere. Stating the
-relationship honestly is a better answer than pretending the two are unrelated.
-
----
-
 ## Project layout
 
 ```
@@ -169,7 +154,7 @@ test results and limitations, is in [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPO
 
 ---
 
-## New: Real Map Navigation
+## Real Map Navigation
 
 The original **AI Simulation** remains at `/`. Use the top navigation to open
 **Real Map Navigation** at `/real-map`, an additional page using actual
