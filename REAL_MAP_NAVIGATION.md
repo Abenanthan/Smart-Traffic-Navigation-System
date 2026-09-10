@@ -197,3 +197,27 @@ The renderer is [Leaflet 1.9.4](https://leafletjs.com/reference). OSM tiles use 
 standard HTTPS URL, visible attribution, and normal browser caching/referrer
 behaviour. There is no bulk tile download or offline tile archive. See the
 [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+
+## Full map browsing and one-time location
+
+The map now pans worldwide and zooms from level 2 to 19. It initially opens at
+Besant Nagar; **Routing area** returns to the highlighted supported area. The
+background map is global, while the saved road graph and UCS routing remain local.
+
+**Use my location** requests browser permission once per click using
+`getCurrentPosition`, centers the map, displays a blue position dot and accuracy
+circle, and selects the start. HTTPS or localhost is required. Denial, timeout,
+unavailable position, and outside-area results are explained without breaking
+manual selection. No continuous tracking or external directions API is used.
+
+Map picks and device location send latitude/longitude to `POST /api/real-map/resolve`.
+The backend selects a traversable junction within 80 metres, respecting departure
+versus arrival direction. The UI displays the selected coordinates and snap distance.
+`POST /api/real-map/route` accepts coordinates or existing junction IDs, resolves
+coordinates again against current traffic, and calls the unchanged UCS engine.
+Route costs start at the snapped junction; travel between the raw point and the
+junction is not modeled. Outside-area points remain visible but cannot be routed.
+
+The added coordinate tests cover UCS reuse, invalid and out-of-area values,
+stale-route clearing, snap distance, one-way/blocked roads, and API validation.
+The original simulation UI, styles, graph, and UCS implementation are preserved.

@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import random
+import math
 from dataclasses import replace
 
 from ..navigation import NavigationSession, NavigationResult, RerouteDecision
@@ -97,7 +98,39 @@ class RealMapService:
         self.session.traffic.history[:] = self.session.traffic.history[-20:]
         return {'result': self.last_result, 'network': self.state()}
 
+    def resolve_coordinate(self, latitude, longitude, role='source'):
+        """Snap within 80 m to a junction with a usable departure/arrival edge."""
+        if role not in ('source', 'destination'):
+            raise ValueError('Choose source or destination as the location role.')
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (latitude, longitude)):
+            raise ValueError('Latitude and longitude must be finite numbers.')
+        south, west, north, east = self.data.metadata['bbox']
+        if not south <= latitude <= north or not west <= longitude <= east:
+            raise ValueError('You can browse the full map, but UCS road data is currently loaded only for Besant Nagar, Chennai. Choose a point inside the highlighted routing area.')
+        graph = self.session.graph
+        usable = {edge.from_node if role == 'source' else edge.to_node for edge in graph.edges()}
+        candidates = [(distance_km([latitude, longitude], position) * 1000, id)
+                      for id, position in self.data.coordinates.items() if id in usable]
+        if not candidates or min(candidates)[0] > 80:
+            raise ValueError('No usable road junction within 80 metres. Choose a point closer to a highlighted road junction, or reopen blocked roads.')
+        metres, id = min(candidates)
+        return {'nodeId': id, 'name': self.session.network.get_node(id).name,
+                'coordinates': self.data.coordinates[id], 'distanceMetres': round(metres, 1),
+                'selectedCoordinates': [latitude, longitude]}
+
     def find_route(self, source, destination):
+        snaps = {}
+        try:
+            for role, value in [('source', source), ('destination', destination)]:
+                if isinstance(value, dict):
+                    snaps[role] = self.resolve_coordinate(value.get('latitude'), value.get('longitude'), role)
+            source = snaps['source']['nodeId'] if 'source' in snaps else source
+            destination = snaps['destination']['nodeId'] if 'destination' in snaps else destination
+        except ValueError as error:
+            self.session.active_route = None
+            self.requested_pair = None
+            return self.response(NavigationResult(success=False, decision=RerouteDecision.NO_ROUTE,
+                headline='Location outside supported roads', reason=str(error)))
         result = self.session.find_route(source, destination)
         if result.success:
             self.requested_pair = (result.route.source, result.route.destination)
@@ -107,7 +140,9 @@ class RealMapService:
             self.requested_pair = (a, b) if a and b and a != b else None
             if result.validation and result.validation.error and result.validation.error.value == 'no_possible_route':
                 result.headline = 'No route available'
-        return self.response(result)
+        response = self.response(result)
+        response['snappedLocations'] = snaps
+        return response
 
     def _recover_if_reopened(self, result):
         # The original demo clears its route on disconnection. Remember this

@@ -1,6 +1,7 @@
 """A separate API namespace and state; no changes to fictional demo endpoints."""
 
 from threading import RLock
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -23,9 +24,18 @@ def service():
     return _service
 
 
+class Coordinate(BaseModel):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
+
+class ResolveBody(Coordinate):
+    role: Literal['source', 'destination'] = 'source'
+
+
 class RouteBody(BaseModel):
-    source: str | None = Field(None, max_length=250)
-    destination: str | None = Field(None, max_length=250)
+    source: Annotated[str, Field(max_length=250)] | Coordinate | None = None
+    destination: Annotated[str, Field(max_length=250)] | Coordinate | None = None
 
 
 class TrafficBody(BaseModel):
@@ -46,7 +56,16 @@ def network():
 @router.post('/route')
 def route(body: RouteBody):
     with _lock:
-        return service().find_route(body.source, body.destination)
+        return service().find_route(**body.model_dump())
+
+
+@router.post('/resolve')
+def resolve(body: ResolveBody):
+    with _lock:
+        try:
+            return service().resolve_coordinate(body.latitude, body.longitude, body.role)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
 
 
 @router.post('/traffic')

@@ -21,3 +21,4 @@ export const findRoute = (source, destination) => request('route', { source, des
 export const updateTraffic = (roadId, traffic) => request('traffic', { roadId, traffic })
 export const simulate = () => request('simulate', { allowBlocking: false })
 export const reset = () => request('reset', {})
+export const resolveCoordinate = (coordinate, role) => request('resolve', { ...coordinate, role })

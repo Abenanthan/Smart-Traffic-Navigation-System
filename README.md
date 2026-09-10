@@ -152,9 +152,11 @@ Smart Traffic Navigation Sysytem/
 Full documentation, including the AI problem formulation, pseudocode, activity diagrams,
 test results and limitations, is in [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md).
 
+
+
 ---
 
-## Real Map Navigation
+## Real Map Navigations
 
 The original **Graphical Simulation** remains at `/`. Use the top navigation to open
 **Real Map Navigation** at `/real-map`, an additional page using actual

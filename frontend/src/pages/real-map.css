@@ -66,3 +66,8 @@
   .rm-map { height: 460px; }
   .rm-route-endpoints { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
+.real-map-page .rm-map-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.real-map-page .rm-map-tools span, .real-map-page .rm-coordinate { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+.real-map-page .rm-coordinate { display: block; margin-top: 6px; }
+.real-map-page .rm-location-note { margin: 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; }
+.real-map-page .rm-current-marker span { display: block; width: 18px; height: 18px; box-sizing: border-box; border: 3px solid #FFFAF3; border-radius: 50%; background: #2563EB; box-shadow: 0 0 0 2px #2563EB; }

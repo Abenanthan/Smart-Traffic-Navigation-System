@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-export default function GeographicMap({ network, route, source, destination, selectedRoad, onRoadSelect, pickMode, onPick, onPickError, fitVersion }) {
+export default function GeographicMap({ network, route, source, destination, selectedRoad, onRoadSelect, pickMode, onPick, fitVersion, sourceCoordinate, destinationCoordinate, currentLocation, focusLocation, areaVersion }) {
   const container = useRef(null)
   const map = useRef(null)
   const roadsLayer = useRef(null)
   const routeLayer = useRef(null)
   const markersLayer = useRef(null)
+  const locationLayer = useRef(null)
   const latest = useRef({})
   const [tileError, setTileError] = useState(false)
   const [theme, setTheme] = useState(document.documentElement.dataset.theme)
-  latest.current = { network, pickMode, onPick, onPickError, onRoadSelect }
+  latest.current = { network, pickMode, onPick, onRoadSelect }
 
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(document.documentElement.dataset.theme))
@@ -20,12 +21,11 @@ export default function GeographicMap({ network, route, source, destination, sel
   }, [])
 
   useEffect(() => {
-    const view = L.map(container.current, { scrollWheelZoom: false, minZoom: 13, maxZoom: 19, zoomSnap: .25 })
+    const view = L.map(container.current, { scrollWheelZoom: true, minZoom: 2, maxZoom: 19, zoomSnap: .25, worldCopyJump: true })
     map.current = view
     const [s, w, n, e] = latest.current.network.metadata.bbox
     const bounds = L.latLngBounds([s, w], [n, e])
     view.fitBounds(bounds, { padding: [16, 16] })
-    view.setMaxBounds(bounds.pad(.5))
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>',
@@ -35,18 +35,12 @@ export default function GeographicMap({ network, route, source, destination, sel
     roadsLayer.current = L.layerGroup().addTo(view)
     routeLayer.current = L.layerGroup().addTo(view)
     markersLayer.current = L.layerGroup().addTo(view)
+    locationLayer.current = L.layerGroup().addTo(view)
     view.on('click', event => {
       const state = latest.current
       if (!state.pickMode) return
-      const closest = state.network.locations.reduce((best, node) => {
-        const metres = view.distance(event.latlng, node.coordinates)
-        return !best || metres < best.metres ? { node, metres } : best
-      }, null)
-      if (!closest || closest.metres > 80) {
-        state.onPickError('Choose a point within 80 metres of a supported road junction, or use the location list.')
-        return
-      }
-      state.onPick(state.pickMode, closest.node.id)
+      const point = event.latlng.wrap()
+      state.onPick(state.pickMode, { latitude: point.lat, longitude: point.lng })
     })
     const resize = new ResizeObserver(() => view.invalidateSize())
     resize.observe(container.current)
@@ -87,23 +81,45 @@ export default function GeographicMap({ network, route, source, destination, sel
       L.polyline(route.geometry, { color: '#2463A0', weight: 5, opacity: 1, interactive: false }).addTo(routeLayer.current)
     }
     markersLayer.current.clearLayers()
-    for (const [id, label, color] of [[source, 'From', '#2463A0'], [destination, 'To', '#C81B33']]) {
+    for (const [id, label, color, coordinate] of [[source, 'From', '#2463A0', sourceCoordinate], [destination, 'To', '#C81B33', destinationCoordinate]]) {
       const location = network.locations.find(node => node.id === id)
-      if (!location) continue
+      if (!location && !coordinate) continue
+      const point = coordinate ? [coordinate.latitude, coordinate.longitude] : location.coordinates
+      const name = coordinate ? `${point[0].toFixed(5)}, ${point[1].toFixed(5)}` : location.name
       const icon = L.divIcon({
         className: 'rm-map-marker',
         html: `<span style="background:${color}">${label === 'From' ? 'A' : 'B'}</span>`,
         iconSize: [30, 30], iconAnchor: [15, 15],
       })
-      const marker = L.marker(location.coordinates, { icon, title: `${label}: ${location.name}`, alt: `${label}: ${location.name}` }).addTo(markersLayer.current)
+      const marker = L.marker(point, { icon, title: `${label}: ${name}`, alt: `${label}: ${name}` }).addTo(markersLayer.current)
       marker.on('click', () => {
-        if (latest.current.pickMode) latest.current.onPick(latest.current.pickMode, location.id)
+        if (latest.current.pickMode) latest.current.onPick(latest.current.pickMode, { latitude: point[0], longitude: point[1] })
       })
       const content = document.createElement('span')
-      content.textContent = `${label}: ${location.name}`
+      content.textContent = `${label}: ${name}${coordinate && location ? ` · Road junction: ${location.name}` : ''}`
       marker.bindPopup(content)
     }
-  }, [network.locations, source, destination, route, theme])
+  }, [network.locations, source, destination, route, theme, sourceCoordinate, destinationCoordinate])
+
+  useEffect(() => {
+    if (!locationLayer.current) return
+    locationLayer.current.clearLayers()
+    if (!currentLocation) return
+    const point = [currentLocation.latitude, currentLocation.longitude]
+    L.circle(point, { radius: currentLocation.accuracy, color: '#2563EB', weight: 1, fillOpacity: .1, interactive: false }).addTo(locationLayer.current)
+    const icon = L.divIcon({ className: 'rm-current-marker', html: '<span></span>', iconSize: [18, 18], iconAnchor: [9, 9] })
+    L.marker(point, { icon, title: 'You are here', alt: 'You are here' }).bindPopup('You are here · One-time device location').addTo(locationLayer.current)
+  }, [currentLocation])
+
+  useEffect(() => {
+    if (map.current && currentLocation) map.current.setView([currentLocation.latitude, currentLocation.longitude], 16, { animate: false })
+  }, [currentLocation, focusLocation])
+
+  useEffect(() => {
+    if (!map.current) return
+    const [s, w, n, e] = network.metadata.bbox
+    map.current.fitBounds([[s, w], [n, e]], { padding: [24, 24], animate: false })
+  }, [areaVersion])
 
   useEffect(() => {
     if (!map.current) return
