@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-export default function GeographicMap({ network, route, source, destination, selectedRoad, onRoadSelect, pickMode, onPick, fitVersion, sourceCoordinate, destinationCoordinate, currentLocation, focusLocation, areaVersion }) {
+export default function GeographicMap({ network, route, source, destination, selectedRoad, onRoadSelect, pickMode, onPick, fitVersion, sourceCoordinate, destinationCoordinate, currentLocation, focusLocation, areaVersion, focusPoint, showBounds = true }) {
   const container = useRef(null)
   const map = useRef(null)
   const roadsLayer = useRef(null)
   const routeLayer = useRef(null)
   const markersLayer = useRef(null)
   const locationLayer = useRef(null)
+  const boundsLayer = useRef(null)
   const latest = useRef({})
   const [tileError, setTileError] = useState(false)
   const [theme, setTheme] = useState(document.documentElement.dataset.theme)
@@ -21,17 +22,15 @@ export default function GeographicMap({ network, route, source, destination, sel
   }, [])
 
   useEffect(() => {
-    const view = L.map(container.current, { scrollWheelZoom: true, minZoom: 2, maxZoom: 19, zoomSnap: .25, worldCopyJump: true })
+    const view = L.map(container.current, { preferCanvas: true, scrollWheelZoom: true, minZoom: 2, maxZoom: 19, zoomSnap: .25, worldCopyJump: true })
     map.current = view
-    const [s, w, n, e] = latest.current.network.metadata.bbox
-    const bounds = L.latLngBounds([s, w], [n, e])
-    view.fitBounds(bounds, { padding: [16, 16] })
+    view.setView([20, 0], 3)
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>',
     }).addTo(view)
     tiles.on('tileerror', () => setTileError(true))
-    L.rectangle(bounds, { color: '#8A7254', weight: 1, fill: false, dashArray: '5 6', interactive: false }).addTo(view)
+    boundsLayer.current = L.layerGroup().addTo(view)
     roadsLayer.current = L.layerGroup().addTo(view)
     routeLayer.current = L.layerGroup().addTo(view)
     markersLayer.current = L.layerGroup().addTo(view)
@@ -50,6 +49,17 @@ export default function GeographicMap({ network, route, source, destination, sel
       map.current = null
     }
   }, [])
+
+  useEffect(() => {
+    boundsLayer.current?.clearLayers()
+    if (!showBounds || !boundsLayer.current) return
+    const [s, w, n, e] = network.metadata.bbox
+    L.rectangle([[s, w], [n, e]], { color: '#8A7254', weight: 1, fill: false, dashArray: '5 6', interactive: false }).addTo(boundsLayer.current)
+  }, [network.metadata, showBounds])
+
+  useEffect(() => {
+    if (focusPoint && map.current) map.current.setView([focusPoint.latitude, focusPoint.longitude], 15, { animate: false })
+  }, [focusPoint])
 
   useEffect(() => {
     if (!roadsLayer.current) return
@@ -116,13 +126,13 @@ export default function GeographicMap({ network, route, source, destination, sel
   }, [currentLocation, focusLocation])
 
   useEffect(() => {
-    if (!map.current) return
+    if (!map.current || !showBounds) return
     const [s, w, n, e] = network.metadata.bbox
     map.current.fitBounds([[s, w], [n, e]], { padding: [24, 24], animate: false })
   }, [areaVersion])
 
   useEffect(() => {
-    if (!map.current) return
+    if (!map.current || !showBounds) return
     const geometry = route?.geometry
     const [s, w, n, e] = network.metadata.bbox
     map.current.fitBounds(geometry?.length ? L.latLngBounds(geometry) : L.latLngBounds([s, w], [n, e]), { padding: [40, 40], maxZoom: 17, animate: false })
@@ -134,7 +144,7 @@ export default function GeographicMap({ network, route, source, destination, sel
       <div className={pickMode ? 'rm-map-frame rm-picking' : 'rm-map-frame'}>
         {/* Leaflet owns the container's additional classes. Keep React's class
             static so changing pick mode never removes leaflet-container. */}
-        <div ref={container} className="rm-map" aria-label="Interactive map of Besant Nagar with OpenStreetMap roads and the UCS route" />
+        <div ref={container} className="rm-map" aria-label="Interactive world map with selected places, loaded OpenStreetMap roads and the UCS route" />
       </div>
     </>
   )

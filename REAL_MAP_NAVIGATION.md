@@ -1,223 +1,112 @@
-# Real Map Navigation extension
+# Real Map Navigation
 
-The original **Graphical Simulation** is still at `/`. The new **Real Map Navigation**
-page is at `/real-map`. Use the navigation links at the top of either page.
-They are ordinary page links: switching pages stops that page's automatic traffic
-timer, while each backend mode retains its independent in-memory traffic and route.
+The original Graphical Simulation remains at `/`; the search-based map is at
+`/real-map`. The original simulation UI, data, API behavior, core modules, UCS
+implementation and teaching trace remain unchanged.
 
-## What is preserved
+## Using the map
 
-The existing `App.jsx`, simulation components, simulation CSS, fictional
-`road_network.json`, six backend modules, UCS implementation, and original tests
-are unchanged. Integration is limited to a frontend entry-point wrapper, one
-FastAPI router registration, and the Leaflet dependency. No existing API endpoint
-is replaced. No additional route-selection algorithm or routing service is used.
+1. Search for a start and destination by name, address or city. Press Enter or
+   Search, then select a result. Search is worldwide; results can be biased toward
+   your location without being restricted to that area.
+2. Alternatively, click Use my location to request a single browser position.
+   Nearby areas, stations, hospitals and educational destinations appear by
+   distance. Select one to set your destination. Without location permission,
+   nearby suggestions use your selected start. Map picking is also supported.
+3. Find optimal route downloads OSM roads around both selected coordinates and
+   builds a new graph. UCS calculates the route and the map draws its road geometry.
+4. Use the traffic panel to change road delays, block roads, or simulate changes.
+   The same UCS engine reruns against that graph. Loading another trip starts a
+   new traffic simulation. Rerouting uses the selected source, not a moving vehicle.
 
-## Running both pages
+The interface starts with empty search fields rather than a fixed list of areas.
+Each newly selected place hides the previous route until a new route is calculated.
+Provider failures preserve selections and display an actionable error.
 
-The existing run instructions and launch scripts still apply. Install the updated
-frontend dependencies with `npm install` inside `frontend`, then start the Python
-backend on port 8000 and Vite on port 5173. Restart the backend if it was started
-without `--reload`, so it registers the additional API router.
+## Running
 
-If using a local virtual environment on Windows:
+The existing launch scripts still apply: FastAPI on port 8000 and Vite on 5173.
+Restart a backend that was started without `--reload` to register new endpoints.
+No new dependencies or API keys are required. Backend internet access is required
+for place search, nearby suggestions and new road downloads; browser internet
+access is required for tiles. Once loaded, the graph supports local simulated
+traffic/routing without another road download. The preserved Besant Nagar snapshot
+continues to support legacy endpoints and regression tests, but does not populate
+the new search fields or constrain new trips.
 
-```powershell
-# From the repository root, after creating backend/.venv and installing requirements:
-cd backend
-.venv/Scripts/python.exe -m uvicorn app.api:app --reload --port 8000
+Location permission requires HTTPS or localhost. Denial, unavailable positions and
+timeouts leave manual search and map selection usable. The browser requests a
+fresh one-time location per click; no continuous GPS tracking is implemented.
 
-# In another terminal, from the repository root:
-cd frontend
-npm install
-npm run dev
-```
+## Providers and resource limits
 
-No API key, paid mapping service, geocoding service, or GPS permission is required.
-Browser internet access is needed for the OpenStreetMap background tiles. The
-bundled road graph, routing, and traffic controls remain usable without tiles;
-the page shows a clear background-map error in that case. A production web host
-must serve `index.html` for `/real-map` and proxy `/api` to FastAPI, as Vite does.
+- Search: [Photon](https://photon.komoot.io/), based on OpenStreetMap data.
+- Roads and nearby places: [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API).
+- Tiles/attribution: [OpenStreetMap contributors, ODbL](https://www.openstreetmap.org/copyright).
 
-## Road-data provenance and coverage
+Search requests run only on an explicit Search/Enter action, never on each keypress.
+Provider requests are serialized at least 1.1 seconds apart and cached in memory
+for 15 minutes, capped at 32 entries / 24 MB of raw responses. There is no disk
+cache or bulk tile download. A response is limited to 12 MB. A failed Overpass call
+can try one alternate server. Public services may throttle requests and do not
+provide an availability guarantee; use a dedicated provider for larger deployments.
+Configuration is read at backend startup:
 
-- Area: **Besant Nagar, Chennai, India**.
-- Supported bounds: south **12.995**, west **80.260**, north **13.010**, east **80.278**.
-- File: `backend/data/besant_nagar.osm.json` (approximately 184 KiB).
-- Source: **© OpenStreetMap contributors**, licensed under the
-  [Open Database License (ODbL)](https://www.openstreetmap.org/copyright).
-- Retrieved on **2026-09-09** from the public
-  [Kumi Overpass endpoint](https://overpass.kumi.systems/api/interpreter).
-- The response reports a source-data timestamp of **2026-07-15T15:22:01Z**.
-  The page displays this snapshot date; it does not claim fresh/live road data.
-- The saved response contains 294 ways. After access filtering, clipping, and
-  splitting, it produces **369 junctions and 472 graph road segments**.
+| Environment variable | Default |
+| --- | --- |
+| `PHOTON_URL` | `https://photon.komoot.io` |
+| `OVERPASS_URL` | `https://overpass-api.de/api/interpreter` |
+| `OVERPASS_FALLBACK_URL` | `https://overpass.kumi.systems/api/interpreter` |
 
-The exact data query was:
+Set the fallback to an empty string to disable it. Use a single backend worker for
+this in-memory academic demo. Provider throttling, cache, and the active real-map
+session are process-local. This is not a multi-user navigation server.
 
-```text
-[out:json][timeout:25];
-way["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street|service|primary_link|secondary_link|tertiary_link)$"]
-(12.995,80.260,13.010,80.278);
-out geom;
-```
+Search works worldwide. Road loading supports local/regional trips in arbitrary
+areas, subject to 100 km straight-line separation, 2,500 km² bounding-box area,
+30,000 OSM ways, 15,000 graph junctions, and 25,000 graph road segments. Very dense
+areas may reach the graph limit sooner. Polar/date-line crossing trips are rejected.
+The graph includes a 2 km margin around the selected pair. A detour outside it can
+be missed; optimality is only over the downloaded graph, not every road worldwide.
+No route is manufactured for missing roads, disconnected endpoints, or large trips.
 
-This fetches road data only. Overpass does not select a route. The snapshot is
-loaded locally, so opening the page never downloads a city's road network or
-depends on Overpass availability. Keep its attribution and licence information
-when redistributing it or derived road data.
+## UCS integration
 
-## How the same UCS engine is reused
+`POST /api/real-map/search` accepts `{query, bias?}` and returns named coordinates.
+`POST /api/real-map/nearby` accepts `{latitude, longitude}` and returns nearby places.
+`POST /api/real-map/trip` accepts `{source: {latitude, longitude}, destination: {...}}`.
 
-```text
-Saved OSM ways and node coordinates
-  → access filtering and bounded road geometry
-  → junctions + road segments
-  → existing RoadNetwork and TrafficData
-  → GeographicGraph (a small WeightedGraph direction adapter)
-  → existing NavigationSession
-  → existing uniform_cost_search in app/ucs_engine.py
-  → road IDs and node path
-  → matching road geometry, oriented in route direction
-  → Leaflet polyline
-```
+The trip endpoint downloads road geometry only, builds the existing RoadNetwork,
+TrafficData and WeightedGraph adapter, and calls the original `uniform_cost_search`.
+No external directions service, A*, or alternative pathfinding implementation is
+used. `DynamicNavigation` disables only the engine's existing optional trace
+recording (`record_trace=False`) to avoid huge teaching snapshots for city graphs.
+The original simulation retains full trace recording. Route construction, traffic
+updates and cost comparisons reuse the existing navigation methods.
 
-Connectivity comes from shared **OSM node IDs**, not from roads appearing to cross
-on a map. Shared junctions and way endpoints become graph nodes. Intermediate
-shape vertices stay in road geometry, so a route follows the actual road curves.
-Segments outside the bounds are excluded without joining across missing sections.
-Restrictions for motorcars/motor vehicles/vehicles/access are checked; private,
-destination-only, conditional, and other unsupported access values are omitted.
+Shared OSM node IDs determine connectivity. Shape vertices near selected places
+become endpoints so snapping does not require a distant junction. Raw selected
+coordinates are matched to a usable departure/arrival node within 500 m. Snap
+distances are shown explicitly. The route starts/ends at those road points; travel
+between the place and snapped point is excluded. One-way direction, roundabouts
+and conservative access filtering apply. Turn restrictions are not modeled.
 
-Explicit one-way directions, reverse one-way (`-1`) and roundabout defaults are
-respected by filtering the inherited weighted adjacency entries. Parallel roads
-are given distinct intermediate nodes where necessary, ensuring the existing
-path-repricing function refers to an unambiguous road. No heuristic or external
-shortest-path result is introduced.
+Costs retain the academic model: 30 km/h assumed speed, each segment rounded up
+to whole minutes, then +0/+5/+12 minutes of simulated delay. Blocked roads are
+excluded. These costs are not live arrival estimates. Road segments and their
+costs are available below the map; voice guidance and continuous turn-by-turn
+vehicle navigation are not implemented.
 
-The existing input validator retains its undirected structural reachability
-precheck. This precheck never chooses a route: **UCS searches the directed graph**
-and returns no-route where one-way restrictions prevent travel.
+## Changes and validation
 
-## Costs and simulated traffic
+New: `backend/app/real_map/providers.py`, `dynamic_navigation.py`,
+`backend/tests/test_dynamic_map.py`, and `frontend/src/components/RealMap/PlaceSearch.jsx`.
+Updated: the real-map API, graph adapter, service, transport, page, scoped styles,
+and Leaflet renderer. Original simulation files are unchanged.
 
-Every graph cost is in **whole minutes**, preserving the existing model:
-
-```text
-distance = sum of haversine distances along the road geometry, in km
-base time = max(1, ceil(distance / 30 km/h × 60)) minutes
-effective cost = base time + simulated traffic delay
-```
-
-| Traffic | Additional cost |
-|---|---:|
-| Low | 0 min |
-| Medium | 5 min |
-| High | 12 min |
-| Blocked | Excluded from traversable adjacency |
-
-The 30 km/h speed is an explicit modelling assumption, not a measured speed.
-The minimum minute and upward rounding apply **per graph road segment**, including
-segments split to distinguish parallel roads. This deliberately simple model can
-inflate costs on dense junction networks; displayed values are **model travel
-costs**, not live ETAs. The UI reports geographic road distance separately.
-
-All roads start at low traffic. You can select any supported segment, apply any
-of the four traffic states, trigger one random non-blocking change, or turn on
-automatic changes every five seconds. A change goes through the existing
-TrafficData observer mechanism and invokes UCS again from the **original selected
-source**. There is no vehicle position or GPS tracking.
-
-The old route is repriced under the updated traffic before comparing costs. A
-cheaper route or a necessary alternative around a blockage replaces it. A small
-real-map-only navigation subclass retains the previous UCS-selected route when a
-fresh UCS search proves an alternative has exactly the same cost. It does not
-implement another routing algorithm. The real-map service remembers selected
-endpoints after a no-route result so reopening/resetting roads can recover a route.
-
-## New API namespace
-
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/real-map/network` | Local road geometry, selectable junctions, costs, metadata, active route |
-| `POST /api/real-map/route` | `{source, destination}` → validation and UCS |
-| `POST /api/real-map/traffic` | `{roadId, traffic}` → update, graph change, UCS, comparison |
-| `POST /api/real-map/simulate` | `{allowBlocking: false}` → random simulated change and rerouting |
-| `POST /api/real-map/reset` | Restore low traffic and recalculate selected route |
-
-One independently locked real-map session is held in memory. Requests serialize
-traffic changes and route computation so a search sees a consistent set of costs.
-The original `/api/network`, `/api/route`, `/api/traffic`, `/api/simulate`, and
-`/api/reset` still use only their original fictional-network session. Like the
-existing prototype, browser users of the same mode share its session; there are
-no accounts, persistence, or per-user sessions. Restarting the backend resets it.
-
-## Demonstrating it
-
-1. Open **Graphical Simulation** and demonstrate the original College Main Gate → Railway
-   Station route, UCS replay, traffic changes, and blockage exactly as before.
-2. Open **Real Map Navigation**. The page starts with two named road-junction
-   selections in Besant Nagar. Use the dropdowns or **Pick on map**. A click must
-   be within 80 m of a supported junction; selection snaps to that junction.
-3. Select **Find optimal route**. Inspect the blue route, geographic distance,
-   cumulative model cost, and road-by-road arithmetic.
-4. The traffic dropdown automatically selects the route's first road. Apply
-   **High** traffic to demonstrate the repriced-old versus new UCS cost comparison.
-5. Reset traffic, select **Blocked** on a route road, and apply it. UCS finds an
-   alternative if one exists, or reports no route and removes the displayed route.
-6. Reopen roads with **Low**, or reset traffic, to recover the selected route.
-7. Try **Simulate change** and **Auto-simulate**. Some random changes leave the
-   optimal route unchanged; this is an expected result, not a failure.
-8. Return to **Graphical Simulation**: its traffic and active route were not changed by
-   real-map operations. The full UCS trace/replay remains on that page.
-
-## Validation
-
-Run `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` from the root,
-or use `python -m pytest tests -q` in an activated backend environment.
-Run `npm run build` in `frontend`.
-
-The 71 original tests pass unchanged. The extension adds 26 tests covering the
-actual snapshot, existing-UCS invocation, cost units, geometry reconstruction,
-one-way directions, parallel roads, traffic updates, blocked/no-route recovery,
-equal-cost route retention, unsupported inputs and data, API errors, and isolation
-between both modes. New test-only geographic fixtures are explicitly synthetic;
-the actual page loads the attributed OpenStreetMap snapshot.
-
-## Boundaries and future work
-
-This remains an academic navigation prototype. Routing is limited to the saved
-area and filtered roads, even when other streets appear in the background tiles.
-Turn restrictions, lane restrictions, temporary real closures, elevation, speed
-profiles, live traffic feeds, global search/geocoding, GPS tracking, and continuous
-vehicle-position rerouting are not implemented. The route can therefore differ
-from a production driving route. None of these limitations change the role of UCS.
-
-The renderer is [Leaflet 1.9.4](https://leafletjs.com/reference). OSM tiles use the
-standard HTTPS URL, visible attribution, and normal browser caching/referrer
-behaviour. There is no bulk tile download or offline tile archive. See the
-[OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
-
-## Full map browsing and one-time location
-
-The map now pans worldwide and zooms from level 2 to 19. It initially opens at
-Besant Nagar; **Routing area** returns to the highlighted supported area. The
-background map is global, while the saved road graph and UCS routing remain local.
-
-**Use my location** requests browser permission once per click using
-`getCurrentPosition`, centers the map, displays a blue position dot and accuracy
-circle, and selects the start. HTTPS or localhost is required. Denial, timeout,
-unavailable position, and outside-area results are explained without breaking
-manual selection. No continuous tracking or external directions API is used.
-
-Map picks and device location send latitude/longitude to `POST /api/real-map/resolve`.
-The backend selects a traversable junction within 80 metres, respecting departure
-versus arrival direction. The UI displays the selected coordinates and snap distance.
-`POST /api/real-map/route` accepts coordinates or existing junction IDs, resolves
-coordinates again against current traffic, and calls the unchanged UCS engine.
-Route costs start at the snapped junction; travel between the raw point and the
-junction is not modeled. Outside-area points remain visible but cannot be routed.
-
-The added coordinate tests cover UCS reuse, invalid and out-of-area values,
-stale-route clearing, snap distance, one-way/blocked roads, and API validation.
-The original simulation UI, styles, graph, and UCS implementation are preserved.
+Run `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` from the root and
+`npm run build` inside `frontend`. The suite includes the 71 original tests and
+51 real-map tests. Tests cover new-region UCS reuse, coordinate snapping, one-way
+roads, traffic, blocking/reopening, graph isolation, input limits, provider caching,
+fallback, and nearby ordering. A live Bengaluru smoke check loaded 6,122 junctions
+and 7,899 roads and routed between Cubbon Park and MG Road metro stations using UCS.

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from ..models import TrafficLevel
 from .service import RealMapService
+from .providers import providers, trip_bounds, ProviderError
 
 router = APIRouter(prefix='/api/real-map', tags=['Real Map Navigation'])
 _service = None
@@ -38,6 +39,16 @@ class RouteBody(BaseModel):
     destination: Annotated[str, Field(max_length=250)] | Coordinate | None = None
 
 
+class SearchBody(BaseModel):
+    query: str = Field(min_length=2, max_length=200)
+    bias: Coordinate | None = None
+
+
+class TripBody(BaseModel):
+    source: Coordinate
+    destination: Coordinate
+
+
 class TrafficBody(BaseModel):
     roadId: str = Field(min_length=1, max_length=100)
     traffic: TrafficLevel
@@ -66,6 +77,45 @@ def resolve(body: ResolveBody):
             return service().resolve_coordinate(body.latitude, body.longitude, body.role)
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
+
+
+@router.post('/search')
+def search(body: SearchBody):
+    if len(body.query.strip()) < 2:
+        raise HTTPException(422, 'Enter at least two characters to search for a place.')
+    try:
+        return {'places': providers.search(body.query.strip(), body.bias.model_dump() if body.bias else None)}
+    except ProviderError as error:
+        raise HTTPException(503, str(error)) from error
+
+
+@router.post('/nearby')
+def nearby(body: Coordinate):
+    try:
+        return {'places': providers.nearby(body.model_dump())}
+    except ProviderError as error:
+        raise HTTPException(503, str(error)) from error
+
+
+@router.post('/trip')
+def trip(body: TripBody):
+    """Load a trip-specific graph atomically; existing state survives provider errors."""
+    global _service
+    source, destination = body.source.model_dump(), body.destination.model_dump()
+    try:
+        bbox = trip_bounds(source, destination)
+        data = providers.roads(bbox)
+        candidate = RealMapService(data, bbox=bbox, dynamic=True,
+                                   anchor_points=([source['latitude'], source['longitude']], [destination['latitude'], destination['longitude']]))
+        response = candidate.find_route(source, destination)
+        # A failed attempt never leaves an old route in the returned graph.
+        with _lock:
+            _service = candidate
+        return response
+    except ProviderError as error:
+        raise HTTPException(503, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
 
 
 @router.post('/traffic')

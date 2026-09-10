@@ -65,10 +65,10 @@ class GeographicData:
     metadata: dict
 
 
-def build_geographic_graph(data, bbox=BBOX):
+def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
     if not isinstance(data, dict) or not isinstance(data.get('elements'), list):
         raise ValueError('Map data must contain an OSM elements list.')
-    if not 0 < len(data['elements']) <= 2000:
+    if not 0 < len(data['elements']) <= (30000 if dynamic else 2000):
         raise ValueError('Map snapshot is empty or exceeds the bounded-area limit.')
     south, west, north, east = bbox
     coordinates, names, parts = {}, defaultdict(set), []
@@ -78,7 +78,7 @@ def build_geographic_graph(data, bbox=BBOX):
         if way.get('type') != 'way':
             continue
         tags = way.get('tags', {})
-        if tags.get('highway') not in ROAD_TYPES:
+        if tags.get('highway') not in (ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'} if dynamic else ROAD_TYPES):
             continue
         # Restrictive access and conditional permissions are conservatively omitted.
         access = tags.get('motorcar', tags.get('motor_vehicle', tags.get('vehicle', tags.get('access', 'yes'))))
@@ -123,6 +123,11 @@ def build_geographic_graph(data, bbox=BBOX):
                 run = []
 
     occurrences = Counter(n for _, _, _, nodes in parts for n in nodes)
+    # Split at existing OSM vertices near selected places, retaining real connectivity.
+    for point in anchor_points:
+        if occurrences:
+            nearest = min(occurrences, key=lambda n: distance_km(point, coordinates[n]))
+            occurrences[nearest] = max(2, occurrences[nearest])
     node_ids, roads, details, pairs = {}, [], {}, set()
 
     def node_id(osm_id):
@@ -167,14 +172,15 @@ def build_geographic_graph(data, bbox=BBOX):
             if occurrences[nodes[index]] > 1 or index == len(nodes) - 1:
                 add_segment(way_id, tags, direction, nodes[start:index + 1])
                 start = index
-    if not roads or len(node_ids) > 1500 or len(roads) > 2500:
+    if not roads or len(node_ids) > (15000 if dynamic else 1500) or len(roads) > (25000 if dynamic else 2500):
         raise ValueError('Map contains no usable roads or exceeds the graph size limit.')
     nodes = [Node(id, f"{' / '.join(sorted(names[osm_id])) or 'Road junction'} · {id}") for osm_id, id in node_ids.items()]
     network = RoadNetwork(nodes, roads)
     traffic = TrafficData(network)
     graph = GeographicGraph(network, traffic, details)
     metadata = {
-        'area': 'Besant Nagar, Chennai', 'bbox': list(bbox),
+        'area': 'Selected trip area' if dynamic else 'Besant Nagar, Chennai', 'bbox': list(bbox),
+        'dynamic': dynamic, 'snapLimitMetres': 500 if dynamic else 80,
         'source': 'OpenStreetMap contributors', 'license': 'ODbL 1.0',
         'sourceUrl': 'https://www.openstreetmap.org/copyright',
         'snapshotDate': data.get('osm3s', {}).get('timestamp_osm_base', 'unknown'),

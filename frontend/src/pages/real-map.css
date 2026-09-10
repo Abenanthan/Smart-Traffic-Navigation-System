@@ -1,5 +1,14 @@
 /* Scoped to the new experience: the original simulation stylesheet is unchanged. */
 .real-map-page { min-height: 100vh; }
+.rm-search-row { display: flex; gap: 6px; }
+.rm-search-row input { min-width: 0; flex: 1; width: 100%; padding: 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+.rm-search-row input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.rm-search-results, .rm-nearby-list { list-style: none; padding: 0; margin: 10px 0 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.rm-search-results li + li, .rm-nearby-list li + li { border-top: 1px solid var(--border); }
+.rm-search-results button, .rm-nearby-list button { display: block; width: 100%; text-align: left; background: var(--bg); color: var(--text); border: 0; border-radius: 0; padding: 11px; font-size: 13px; line-height: 1.5; }
+.rm-search-results button:hover, .rm-nearby-list button:hover { background: var(--highlight); }
+.rm-search-results small, .rm-nearby-list small { display: block; color: var(--text-dim); font-size: 11px; margin-top: 3px; }
+.real-map-page .rm-map-tools .primary { width: auto; font-size: 13px; }
 .rm-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; max-width: 1600px; margin: 0 auto; padding: 24px 28px 40px; align-items: start; }
 .rm-sidebar, .rm-content { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .rm-content > [aria-live]:empty { display: none; }

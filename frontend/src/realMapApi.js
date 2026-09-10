@@ -22,3 +22,6 @@ export const updateTraffic = (roadId, traffic) => request('traffic', { roadId, t
 export const simulate = () => request('simulate', { allowBlocking: false })
 export const reset = () => request('reset', {})
 export const resolveCoordinate = (coordinate, role) => request('resolve', { ...coordinate, role })
+export const searchPlaces = (query, bias, signal) => request('search', { query, bias }, signal)
+export const nearbyPlaces = (coordinate, signal) => request('nearby', coordinate, signal)
+export const findTrip = (source, destination) => request('trip', { source, destination })

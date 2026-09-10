@@ -8,7 +8,7 @@ from dataclasses import replace
 
 from ..navigation import NavigationSession, NavigationResult, RerouteDecision
 from ..models import TrafficLevel
-from .graph_builder import build_geographic_graph, distance_km
+from .graph_builder import BBOX, build_geographic_graph, distance_km
 
 DATA_FILE = Path(__file__).resolve().parents[2] / 'data' / 'besant_nagar.osm.json'
 
@@ -33,12 +33,15 @@ class GeographicNavigation(NavigationSession):
 
 
 class RealMapService:
-    def __init__(self, data=None):
+    def __init__(self, data=None, *, bbox=BBOX, dynamic=False, anchor_points=()):
         if data is None:
             with DATA_FILE.open(encoding='utf-8-sig') as handle:
                 data = json.load(handle)
-        self.data = build_geographic_graph(data)
+        self.data = build_geographic_graph(data, bbox, dynamic=dynamic, anchor_points=anchor_points)
         self.session = GeographicNavigation(self.data.network, self.data.traffic, self.data.graph)
+        if dynamic:
+            from .dynamic_navigation import DynamicNavigation
+            self.session = DynamicNavigation(self.data.network, self.data.traffic, self.data.graph)
         self.requested_pair = None
         self.last_result = None
 
@@ -106,13 +109,14 @@ class RealMapService:
             raise ValueError('Latitude and longitude must be finite numbers.')
         south, west, north, east = self.data.metadata['bbox']
         if not south <= latitude <= north or not west <= longitude <= east:
-            raise ValueError('You can browse the full map, but UCS road data is currently loaded only for Besant Nagar, Chennai. Choose a point inside the highlighted routing area.')
+            raise ValueError('This point is outside the loaded road network. Search for your locations and find a new route to load roads for that trip.')
         graph = self.session.graph
         usable = {edge.from_node if role == 'source' else edge.to_node for edge in graph.edges()}
         candidates = [(distance_km([latitude, longitude], position) * 1000, id)
                       for id, position in self.data.coordinates.items() if id in usable]
-        if not candidates or min(candidates)[0] > 80:
-            raise ValueError('No usable road junction within 80 metres. Choose a point closer to a highlighted road junction, or reopen blocked roads.')
+        limit = self.data.metadata['snapLimitMetres']
+        if not candidates or min(candidates)[0] > limit:
+            raise ValueError(f'No usable road junction within {limit} metres. Choose a point closer to a road, or reopen blocked roads.')
         metres, id = min(candidates)
         return {'nodeId': id, 'name': self.session.network.get_node(id).name,
                 'coordinates': self.data.coordinates[id], 'distanceMetres': round(metres, 1),

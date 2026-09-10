@@ -3,6 +3,7 @@ import * as api from '../realMapApi'
 import ThemeToggle from '../components/ThemeToggle'
 import RerouteBanner from '../components/RerouteBanner'
 import GeographicMap from '../components/RealMap/GeographicMap'
+import PlaceSearch from '../components/RealMap/PlaceSearch'
 import './real-map.css'
 
 const LEVELS = [['low', 'Low', '+0 min'], ['medium', 'Medium', '+5 min'], ['high', 'High', '+12 min'], ['blocked', 'Blocked', 'Unavailable']]
@@ -26,19 +27,21 @@ export default function RealMapNavigationPage() {
   const [currentLocation, setCurrentLocation] = useState(null)
   const [focusLocation, setFocusLocation] = useState(0)
   const [areaVersion, setAreaVersion] = useState(0)
-  const [selectionChanged, setSelectionChanged] = useState(false)
+  const [selectionChanged, setSelectionChanged] = useState(true)
   const [locationNote, setLocationNote] = useState('')
+  const [nearby, setNearby] = useState([])
+  const [nearbyStatus, setNearbyStatus] = useState('Use your location or choose a start to see nearby places.')
+  const [focusPoint, setFocusPoint] = useState(null)
 
   useEffect(() => {
     const controller = new AbortController()
     setError('')
     api.getNetwork(controller.signal).then(data => {
       setNetwork(data)
-      const pair = data.requestedPair
-      setSource(pair?.[0] ?? data.defaults.source)
-      setDestination(pair?.[1] ?? data.defaults.destination)
+      setSource('')
+      setDestination('')
       setRoadId(data.activeRoute?.roadIds?.[0] ?? data.roads[0]?.roadId ?? '')
-      setResult(data.lastResult)
+      setResult(null)
     }).catch(problem => {
       if (problem.name !== 'AbortError') setError(`Could not load the road network. ${problem.message}`)
     })
@@ -85,31 +88,36 @@ export default function RealMapNavigationPage() {
     setPickMode(null)
     setAuto(false)
     setError('')
+    setLocationNote('')
   }
 
-  async function chooseCoordinate(which, coordinate) {
+  function chooseCoordinate(which, coordinate) {
     if (lock.current) return
-    lock.current = true
-    setBusy('Matching your location to a usable road junction…')
+    const place = { ...coordinate, name: coordinate.name || `${coordinate.latitude.toFixed(5)}, ${coordinate.longitude.toFixed(5)}` }
     setAuto(false)
     setPickMode(null)
     setError('')
     setLocationNote('')
     setSelectionChanged(true)
-    setCoordinates(previous => ({ ...previous, [which]: coordinate }))
-    const update = which === 'source' ? setSource : setDestination
-    update('')
-    try {
-      const snapped = await api.resolveCoordinate(coordinate, which)
-      update(snapped.nodeId)
-      setLocationNote(`${which === 'source' ? 'Start' : 'Destination'} matched to ${snapped.name}, ${snapped.distanceMetres} m from your selected point. Route costs begin at the matched junction.`)
-    } catch (problem) {
-      setError(problem.message)
-    } finally {
-      lock.current = false
-      setBusy('')
-    }
+    setCoordinates(previous => ({ ...previous, [which]: place }))
+    if (which === 'source') setSource('')
+    else setDestination('')
+    setFocusPoint(place)
   }
+
+  const nearbyCenter = currentLocation || coordinates.source
+  useEffect(() => {
+    setNearby([])
+    if (!nearbyCenter) { setNearbyStatus('Use your location or choose a start to see nearby places.'); return }
+    const controller = new AbortController()
+    setNearbyStatus('Finding places near you…')
+    api.nearbyPlaces(nearbyCenter, controller.signal).then(data => {
+      if (controller.signal.aborted) return
+      setNearby(data.places)
+      setNearbyStatus(data.places.length ? 'Nearby areas and destinations · nearest first' : 'No named places nearby. Search by name or pick on the map.')
+    }).catch(problem => { if (problem.name !== 'AbortError') setNearbyStatus(problem.message) })
+    return () => controller.abort()
+  }, [nearbyCenter])
 
   function useMyLocation() {
     if (lock.current) return
@@ -127,7 +135,8 @@ export default function RealMapNavigationPage() {
       setCurrentLocation({ ...point, accuracy: position.coords.accuracy })
       setFocusLocation(value => value + 1)
       lock.current = false
-      chooseCoordinate('source', point)
+      setBusy('')
+      chooseCoordinate('source', { ...point, name: 'My current location' })
     }, problem => {
       lock.current = false
       setBusy('')
@@ -138,9 +147,14 @@ export default function RealMapNavigationPage() {
   async function findRoute(event) {
     event.preventDefault()
     setPickMode(null)
-    const response = await run('Finding the optimal route with UCS…', () => api.findRoute(coordinates.source || source, coordinates.destination || destination))
+    setAuto(false)
+    setSelectionChanged(true)
+    const response = await run('Loading roads for your trip and finding the UCS route…', () => api.findTrip(coordinates.source, coordinates.destination))
     if (response) {
+      setFitVersion(v => v + 1)
       setSelectionChanged(false)
+      const snaps = response.snappedLocations
+      if (snaps?.source && snaps?.destination) setLocationNote(`Start matched ${snaps.source.distanceMetres} m from the selected place; destination ${snaps.destination.distanceMetres} m. Travel to and from the matched road points is not included.`)
       if (response.network.requestedPair) {
         setSource(response.network.requestedPair[0])
         setDestination(response.network.requestedPair[1])
@@ -148,12 +162,11 @@ export default function RealMapNavigationPage() {
     }
     if (response?.result?.route) {
       setRoadId(response.result.route.roadIds[0])
-      setFitVersion(v => v + 1)
     }
   }
 
-  const selectedRoad = network?.roads.find(road => road.roadId === roadId)
   const pendingLocations = selectionChanged || (network?.requestedPair && (network.requestedPair[0] !== source || network.requestedPair[1] !== destination))
+  const selectedRoad = !pendingLocations && network?.roads.find(road => road.roadId === roadId)
   const route = !pendingLocations ? network?.activeRoute : null
   const nameOf = id => network?.locations.find(node => node.id === id)?.name ?? id
 
@@ -162,7 +175,7 @@ export default function RealMapNavigationPage() {
       <header className="header">
         <div>
           <h1>Real map navigation</h1>
-          <p className="subtitle">Besant Nagar, Chennai · Real roads. Your UCS engine.</p>
+          <p className="subtitle">Search anywhere · Real roads. Your UCS engine.</p>
         </div>
         <div className="header-actions">
           <span className="simulated-badge">● Simulated Real-Time Traffic</span>
@@ -173,7 +186,7 @@ export default function RealMapNavigationPage() {
       {!network ? (
         <main className="rm-loading">
           {error ? <div className="message error" role="alert">{error}<br /><button className="ghost small" onClick={() => setReload(n => n + 1)}>Retry loading map</button></div>
-            : <div className="empty-state" role="status">Loading the saved OpenStreetMap road network…</div>}
+            : <div className="empty-state" role="status">Preparing your map…</div>}
         </main>
       ) : (
         <main className="rm-layout">
@@ -181,25 +194,32 @@ export default function RealMapNavigationPage() {
             <section className="panel">
               <div className="panel-head"><h2>Where are you heading?</h2></div>
               <form className="panel-body" onSubmit={findRoute}>
-                <p className="panel-intro">Choose a road junction in the supported area, or pick one on the map.</p>
-                {[['source', 'From', source], ['destination', 'To', destination]].map(([which, label, value]) => (
+                <p className="panel-intro">Search for your start and destination, use your current location, or pick on the map.</p>
+                {[['source', 'From'], ['destination', 'To']].map(([which, label]) => (
                   <div className="field" key={which}>
                     <div className="rm-field-heading">
                       <label htmlFor={`rm-${which}`}><span className={`rm-stop ${which}`}>{which === 'source' ? 'A' : 'B'}</span>{label}</label>
                       <button type="button" className="ghost small" disabled={!!busy} aria-pressed={pickMode === which} onClick={() => setPickMode(current => current === which ? null : which)}>{pickMode === which ? 'Cancel pick' : 'Pick on map'}</button>
                     </div>
-                    <select id={`rm-${which}`} value={value} disabled={!!busy} onChange={event => selectLocation(which, event.target.value)}>
-                      <option value="">Choose a location…</option>
-                      {network.locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
-                    </select>
-                    <small className="rm-coordinate">{(() => { const point = coordinates[which]; const node = network.locations.find(item => item.id === value); return point ? `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)} · selected point` : node ? `${node.coordinates[0].toFixed(5)}, ${node.coordinates[1].toFixed(5)} · road junction` : 'Pick a point or choose a junction' })()}</small>
+                    <PlaceSearch id={`rm-${which}`} selected={coordinates[which]} disabled={!!busy} bias={currentLocation || coordinates.source} onSelect={place => chooseCoordinate(which, place)} onClear={() => selectLocation(which, '')} />
+                    {coordinates[which] && <small className="rm-coordinate">{coordinates[which].latitude.toFixed(5)}, {coordinates[which].longitude.toFixed(5)} · selected place</small>}
+
                   </div>
                 ))}
                 <div className="swap-row"><button type="button" className="ghost small" disabled={!!busy} onClick={() => { setSource(destination); setDestination(source); setCoordinates(previous => ({ source: previous.destination, destination: previous.source })); setSelectionChanged(true); setAuto(false); setPickMode(null) }}>⇅ Swap locations</button></div>
-                <button className="primary" type="submit" disabled={!!busy || !source || !destination}>Find optimal route</button>
-                {source && source === destination && <p className="rm-inline-note">Choose different starting and destination junctions.</p>}
-                {pendingLocations && <p className="rm-inline-note">Locations changed. Find a route to use these selections.</p>}
+                <button className="primary" type="submit" disabled={!!busy || !coordinates.source || !coordinates.destination}>Find optimal route</button>
+                {coordinates.source && coordinates.destination && coordinates.source.latitude === coordinates.destination.latitude && coordinates.source.longitude === coordinates.destination.longitude && <p className="rm-inline-note">Choose different starting and destination junctions.</p>}
+                {pendingLocations && coordinates.source && coordinates.destination && <p className="rm-inline-note">Find a route to load roads for these places.</p>}
               </form>
+            </section>
+
+            <section className="panel">
+              <div className="panel-head"><h2>{currentLocation ? 'Near your location' : 'Near your start'}</h2></div>
+              <div className="panel-body">
+                <button type="button" className="ghost small" disabled={!!busy} onClick={useMyLocation}>Use my location</button>
+                <p className="rm-inline-note" role="status">{nearbyStatus}</p>
+                {!!nearby.length && <ul className="rm-nearby-list">{nearby.map(place => <li key={`${place.name}-${place.latitude}`}><button type="button" disabled={!!busy} onClick={() => chooseCoordinate('destination', place)}><span>{place.name}</span><small>{place.distanceKm.toFixed(1)} km away · Set destination</small></button></li>)}</ul>}
+              </div>
             </section>
 
             <section className="panel">
@@ -208,8 +228,8 @@ export default function RealMapNavigationPage() {
                 <p className="panel-intro">Click a colored road on the map or choose a segment below.</p>
                 <div className="field">
                   <label htmlFor="rm-road">Road segment</label>
-                  <select id="rm-road" value={roadId} disabled={!!busy} onChange={event => setRoadId(event.target.value)}>
-                    {network.roads.map(road => <option key={road.roadId} value={road.roadId}>{road.roadId} · {road.name}{road.oneWay ? ' (one-way)' : ''}</option>)}
+                  <select id="rm-road" value={pendingLocations ? '' : roadId} disabled={!!busy || !!pendingLocations} onChange={event => setRoadId(event.target.value)}>
+                    {pendingLocations ? <option value="">Find a route to load roads</option> : network.roads.map(road => <option key={road.roadId} value={road.roadId}>{road.roadId} · {road.name}{road.oneWay ? ' (one-way)' : ''}</option>)}
                   </select>
                 </div>
                 {selectedRoad && <div className="rm-road-detail">
@@ -243,16 +263,16 @@ export default function RealMapNavigationPage() {
                 : !pendingLocations && result ? <RerouteBanner result={result} /> : null}
             </div>
             <section className="panel rm-map-panel">
-              <div className="panel-head"><div><h2>OpenStreetMap</h2><p className="rm-map-caption">Browse the full map · UCS routing in Besant Nagar, Chennai</p></div><button type="button" className="ghost small" onClick={() => setFitVersion(v => v + 1)}>{route ? 'Fit route' : 'Fit area'}</button></div>
+              <div className="panel-head"><div><h2>OpenStreetMap</h2><p className="rm-map-caption">Search worldwide · Roads load for your selected trip</p></div><button type="button" className="ghost small" onClick={() => setFitVersion(v => v + 1)}>{route ? 'Fit route' : 'Fit area'}</button></div>
               <div className="rm-map-tools">
                 <button type="button" className="primary small" disabled={!!busy} onClick={useMyLocation}>Use my location</button>
                 <button type="button" className="ghost small" onClick={() => setAreaVersion(value => value + 1)}>Routing area</button>
-                <span>{network.locations.length} junctions · {network.roads.length} road segments loaded</span>
+                <span>{!pendingLocations ? `${network.locations.length} junctions · ${network.roads.length} road segments loaded` : 'Choose two places to load their roads'}</span>
               </div>
-              {pickMode && <div className="rm-pick-notice" role="status">Click near a road junction to choose your {pickMode === 'source' ? 'starting point' : 'destination'}. Selection snaps to a junction within 80 m.</div>}
-              <GeographicMap network={network} route={route} source={source} destination={destination} selectedRoad={roadId} onRoadSelect={setRoadId} pickMode={busy ? null : pickMode} onPick={chooseCoordinate} fitVersion={fitVersion} sourceCoordinate={coordinates.source} destinationCoordinate={coordinates.destination} currentLocation={currentLocation} focusLocation={focusLocation} areaVersion={areaVersion} />
+              {pickMode && <div className="rm-pick-notice" role="status">Click near a road junction to choose your {pickMode === 'source' ? 'starting point' : 'destination'}. Road matching happens when you find a route.</div>}
+              <GeographicMap network={pendingLocations ? { ...network, roads: [] } : network} route={route} source={source} destination={destination} selectedRoad={roadId} onRoadSelect={setRoadId} pickMode={busy ? null : pickMode} onPick={chooseCoordinate} fitVersion={fitVersion} sourceCoordinate={coordinates.source} destinationCoordinate={coordinates.destination} currentLocation={currentLocation} focusLocation={focusLocation} areaVersion={areaVersion} focusPoint={focusPoint} showBounds={!pendingLocations} />
               <div className="graph-legend">
-                {LEVELS.map(([value, label]) => <span className="legend-item" key={value}><span className={`dot ${value}`} />{label} <span className="rm-count">{network.trafficCounts[value]}</span></span>)}
+                {LEVELS.map(([value, label]) => <span className="legend-item" key={value}><span className={`dot ${value}`} />{label} <span className="rm-count">{pendingLocations ? '—' : network.trafficCounts[value]}</span></span>)}
                 <span className="legend-item"><span className="rm-route-swatch" />UCS route</span>
                 <span className="rm-map-caption">Drag to pan · + / − to zoom</span>
               </div>
@@ -261,7 +281,7 @@ export default function RealMapNavigationPage() {
             <section className="panel rm-route-panel" aria-label="Real-map route information">
               <div className="panel-head"><h2>Your route</h2><span className="module-tag">Uniform Cost Search</span></div>
               {!route ? <div className="empty-state">{result && !result.success && !pendingLocations ? 'No route to display. Adjust the locations or reopen blocked roads, then try again.' : 'Choose your locations and select Find optimal route to see the least-cost path.'}</div> : <div className="panel-body">
-                <div className="rm-route-endpoints"><strong>{nameOf(route.source)}</strong><span aria-hidden="true">→</span><strong>{nameOf(route.destination)}</strong></div>
+                <div className="rm-route-endpoints"><strong>{coordinates.source?.name || nameOf(route.source)}</strong><span aria-hidden="true">→</span><strong>{coordinates.destination?.name || nameOf(route.destination)}</strong></div>
                 <div className="rm-stats">
                   <div><span>Model travel cost</span><strong>{route.totalCost}<small> min</small></strong></div>
                   <div><span>Road distance</span><strong>{route.totalDistance}<small> km</small></strong></div>
@@ -279,8 +299,8 @@ export default function RealMapNavigationPage() {
 
             <section className="rm-data-note">
               <strong>About this map</strong>
-              <p>Road geometry: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors, ODbL</a>. Snapshot: {network.metadata.snapshotDate.slice(0, 10)}. Only highlighted roads inside this area are supported.</p>
-              <p>Base cost assumes 30 km/h and rounds each road segment up to a whole minute. These are demonstration costs, not live arrival estimates. One-way roads are respected; turn restrictions are not modeled. Traffic is simulated, and rerouting starts from the original source. No GPS tracking.</p>
+              <p>Road geometry: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors, ODbL</a>. Place search: Photon. { !pendingLocations && <>Road data: {network.metadata.snapshotDate.slice(0, 10)}.</>} Routing uses the highlighted roads loaded around this trip. Shorter trips work best; loading is limited to 100 km straight-line, 2,500 km², and 15,000 junctions.</p>
+              <p>Base cost assumes 30 km/h and rounds each road segment up to a whole minute. These are demonstration costs, not live arrival estimates. One-way roads are respected; turn restrictions are not modeled. Traffic is simulated, and rerouting starts from the original source. One-time location only; no continuous GPS tracking. Loading a new trip starts a new traffic simulation.</p>
             </section>
           </div>
         </main>
