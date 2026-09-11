@@ -91,11 +91,15 @@ distances are shown explicitly. The route starts/ends at those road points; trav
 between the place and snapped point is excluded. One-way direction, roundabouts
 and conservative access filtering apply. Turn restrictions are not modeled.
 
-Costs retain the academic model: 30 km/h assumed speed, each segment rounded up
-to whole minutes, then +0/+5/+12 minutes of simulated delay. Blocked roads are
-excluded. These costs are not live arrival estimates. Road segments and their
-costs are available below the map; voice guidance and continuous turn-by-turn
-vehicle navigation are not implemented.
+Approximate trip times use distance / 30 km/h, stored in fractional minutes without
+rounding individual road segments. Traffic multiplies each affected road's normal
+time: low 1×, medium 1.5×, high 2.5×. Thus 1 km takes approximately 2, 3 or 5 minutes
+respectively when the entire kilometre has that traffic level. Only display values
+are rounded; UCS searches using the full positive travel-time weights. Blocked
+roads remain excluded. The original fictional simulation and legacy saved-snapshot
+endpoints retain their teaching costs. These are approximate estimates: signals,
+stops, actual road speeds and live congestion are not included. Voice guidance and
+continuous vehicle navigation are not implemented.
 
 ## Changes and validation
 
@@ -106,7 +110,7 @@ and Leaflet renderer. Original simulation files are unchanged.
 
 Run `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` from the root and
 `npm run build` inside `frontend`. The suite includes the 71 original tests and
-51 real-map tests. Tests cover new-region UCS reuse, coordinate snapping, one-way
+62 real-map tests. Tests cover new-region UCS reuse, coordinate snapping, one-way
 roads, traffic, blocking/reopening, graph isolation, input limits, provider caching,
 fallback, and nearby ordering. A live Bengaluru smoke check loaded 6,122 junctions
 and 7,899 roads and routed between Cubbon Park and MG Road metro stations using UCS.

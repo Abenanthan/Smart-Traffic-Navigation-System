@@ -40,13 +40,14 @@ def test_new_region_uses_original_ucs_without_trace(dynamic_data, monkeypatch):
     service = make_service(dynamic_data)
     response = service.find_route(point(1), point(4))
     assert response['result']['success']
-    assert response['result']['route']['totalCost'] == 2
+    base = sum(service.session.network.get_road(r).distance * 2 for r in response['result']['route']['roadIds'])
+    assert response['result']['route']['totalCost'] == pytest.approx(base)
     assert service.session.last_search.trace == []
     assert spy.call_args.kwargs == {'record_trace': False}
     first = response['result']['route']['roadIds'][0]
     reroute = service.update_traffic(first, 'high')['result']
-    assert reroute['route']['totalCost'] == 3
-    assert reroute['previousCostNow'] == 14
+    assert reroute['route']['totalCost'] <= reroute['previousCostNow']
+    assert reroute['previousCostNow'] == pytest.approx(base + service.session.network.get_road(first).base_travel_time * 1.5)
     assert spy.call_count == 2
     assert service.data.metadata['dynamic']
 
@@ -60,7 +61,7 @@ def test_dynamic_block_and_reopen(dynamic_data):
     for road in list(service.session.network.roads_at(route['source'])):
         service.update_traffic(road.id, 'blocked')
     assert service.session.active_route is None
-    assert service.reset()['result']['route']['totalCost'] == 2
+    assert service.reset()['result']['route']['totalCost'] == pytest.approx(route['totalCost'])
 
 
 def test_dynamic_snap_uses_selected_shape_vertex():

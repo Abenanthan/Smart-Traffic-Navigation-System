@@ -14,6 +14,7 @@ from ..models import Node, Road
 from ..road_network import RoadNetwork
 from ..traffic_data import TrafficData
 from ..weighted_graph import WeightedGraph
+from .travel_time import TravelTimeRoad, TravelTimeTraffic
 
 BBOX = (12.995, 80.260, 13.010, 80.278)  # south, west, north, east
 SPEED_KMH = 30
@@ -158,7 +159,9 @@ def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
         name = tags.get('name:en') or tags.get('name') or f"Unnamed {tags['highway'].replace('_', ' ')} road"
         names[shape[0]].add(name)
         names[shape[-1]].add(name)
-        roads.append(Road(road_id, a, b, length, max(1, math.ceil(length / SPEED_KMH * 60))))
+        road_type = TravelTimeRoad if dynamic else Road
+        minutes = length / SPEED_KMH * 60
+        roads.append(road_type(road_id, a, b, length, minutes if dynamic else max(1, math.ceil(minutes))))
         pairs.add(pair)
         details[road_id] = {
             'name': name, 'osmWayId': way_id, 'geometry': geometry,
@@ -176,7 +179,7 @@ def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
         raise ValueError('Map contains no usable roads or exceeds the graph size limit.')
     nodes = [Node(id, f"{' / '.join(sorted(names[osm_id])) or 'Road junction'} · {id}") for osm_id, id in node_ids.items()]
     network = RoadNetwork(nodes, roads)
-    traffic = TrafficData(network)
+    traffic = TravelTimeTraffic(network) if dynamic else TrafficData(network)
     graph = GeographicGraph(network, traffic, details)
     metadata = {
         'area': 'Selected trip area' if dynamic else 'Besant Nagar, Chennai', 'bbox': list(bbox),
@@ -184,7 +187,9 @@ def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
         'source': 'OpenStreetMap contributors', 'license': 'ODbL 1.0',
         'sourceUrl': 'https://www.openstreetmap.org/copyright',
         'snapshotDate': data.get('osm3s', {}).get('timestamp_osm_base', 'unknown'),
-        'assumedSpeedKmh': SPEED_KMH, 'baseTimeRounding': 'Ceiling to whole minutes; minimum 1 minute per graph road.',
+        'assumedSpeedKmh': SPEED_KMH,
+        'baseTimeRounding': 'No per-segment rounding; fractional minutes.' if dynamic else 'Ceiling to whole minutes; minimum 1 minute per graph road.',
+        'trafficMultipliers': {'low': 1, 'medium': 1.5, 'high': 2.5} if dynamic else None,
         'trafficMode': 'Simulated Real-Time Traffic', 'reroutingOrigin': 'Original selected source',
     }
     return GeographicData(network, traffic, graph, {id: coordinates[osm] for osm, id in node_ids.items()}, details, metadata)

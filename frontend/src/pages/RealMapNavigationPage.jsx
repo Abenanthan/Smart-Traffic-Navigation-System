@@ -6,7 +6,9 @@ import GeographicMap from '../components/RealMap/GeographicMap'
 import PlaceSearch from '../components/RealMap/PlaceSearch'
 import './real-map.css'
 
-const LEVELS = [['low', 'Low', '+0 min'], ['medium', 'Medium', '+5 min'], ['high', 'High', '+12 min'], ['blocked', 'Blocked', 'Unavailable']]
+const LEVELS = [['low', 'Low', 'Normal travel time'], ['medium', 'Medium', '1.5× normal travel time'], ['high', 'High', '2.5× normal travel time'], ['blocked', 'Blocked', 'Unavailable']]
+
+const minutes = value => Number(value.toFixed(2))
 
 export default function RealMapNavigationPage() {
   const [network, setNetwork] = useState(null)
@@ -223,7 +225,7 @@ export default function RealMapNavigationPage() {
             </section>
 
             <section className="panel">
-              <div className="panel-head"><h2>Traffic simulation</h2><span className="module-tag">+0 / +5 / +12 min</span></div>
+              <div className="panel-head"><h2>Traffic simulation</h2><span className="module-tag">1× / 1.5× / 2.5×</span></div>
               <div className="panel-body">
                 <p className="panel-intro">Click a colored road on the map or choose a segment below.</p>
                 <div className="field">
@@ -235,12 +237,12 @@ export default function RealMapNavigationPage() {
                 {selectedRoad && <div className="rm-road-detail">
                   <strong>{selectedRoad.name}</strong>
                   <span>{selectedRoad.from} {selectedRoad.oneWay ? '→' : '↔'} {selectedRoad.to} · {(selectedRoad.distance * 1000).toFixed(0)} m</span>
-                  <div><span className={`traffic-pill ${selectedRoad.traffic}`}>{selectedRoad.traffic}</span><b>{selectedRoad.traversable ? `${selectedRoad.baseTravelTime} + ${selectedRoad.trafficDelay} = ${selectedRoad.cost} min` : 'Road unavailable'}</b></div>
+                  <div><span className={`traffic-pill ${selectedRoad.traffic}`}>{selectedRoad.traffic}</span><b>{selectedRoad.traversable ? `${minutes(selectedRoad.baseTravelTime)} + ${minutes(selectedRoad.trafficDelay)} = ${minutes(selectedRoad.cost)} min` : 'Road unavailable'}</b></div>
                 </div>}
                 <div className="level-picker" role="group" aria-label="New traffic level">
                   {LEVELS.map(([value, label]) => <button key={value} type="button" className={`level-option ${value} ${level === value ? 'selected' : ''}`} aria-pressed={level === value} disabled={!!busy} onClick={() => setLevel(value)}><span className={`dot ${value}`} />{label}</button>)}
                 </div>
-                <p className="delay-note">{LEVELS.find(item => item[0] === level)[2]}{level === 'blocked' ? ' to routing' : ' traffic delay per road'}</p>
+                <p className="delay-note">{LEVELS.find(item => item[0] === level)[2]}{level === 'blocked' ? ' to routing' : ''}</p>
                 <button className="primary" type="button" disabled={!!busy || !roadId || !!pendingLocations} onClick={() => run('Updating road costs and rerouting with UCS…', () => api.updateTraffic(roadId, level))}>Apply traffic change</button>
                 <div className="button-row rm-secondary-actions">
                   <button type="button" disabled={!!busy || !!pendingLocations} onClick={() => run('Simulating a traffic change…', api.simulate)}>Simulate change</button>
@@ -260,7 +262,7 @@ export default function RealMapNavigationPage() {
             {locationNote && <p className="rm-location-note" role="status">{locationNote}</p>}
             <div aria-live="polite" aria-atomic="true">
               {busy ? <div className="recalculating"><span className="spinner" />{busy}</div>
-                : !pendingLocations && result ? <RerouteBanner result={result} /> : null}
+                : !pendingLocations && result ? <RerouteBanner result={{ ...result, previousCostNow: result.previousCostNow == null ? null : minutes(result.previousCostNow), saving: result.saving == null ? null : minutes(result.saving), route: result.route ? { ...result.route, totalCost: minutes(result.route.totalCost) } : null }} /> : null}
             </div>
             <section className="panel rm-map-panel">
               <div className="panel-head"><div><h2>OpenStreetMap</h2><p className="rm-map-caption">Search worldwide · Roads load for your selected trip</p></div><button type="button" className="ghost small" onClick={() => setFitVersion(v => v + 1)}>{route ? 'Fit route' : 'Fit area'}</button></div>
@@ -283,15 +285,15 @@ export default function RealMapNavigationPage() {
               {!route ? <div className="empty-state">{result && !result.success && !pendingLocations ? 'No route to display. Adjust the locations or reopen blocked roads, then try again.' : 'Choose your locations and select Find optimal route to see the least-cost path.'}</div> : <div className="panel-body">
                 <div className="rm-route-endpoints"><strong>{coordinates.source?.name || nameOf(route.source)}</strong><span aria-hidden="true">→</span><strong>{coordinates.destination?.name || nameOf(route.destination)}</strong></div>
                 <div className="rm-stats">
-                  <div><span>Model travel cost</span><strong>{route.totalCost}<small> min</small></strong></div>
+                  <div><span>Approx. travel time</span><strong>{minutes(route.totalCost)}<small> min</small></strong></div>
                   <div><span>Road distance</span><strong>{route.totalDistance}<small> km</small></strong></div>
-                  <div><span>Traffic delay</span><strong>{route.totalDelay}<small> min</small></strong></div>
+                  <div><span>Traffic delay</span><strong>{minutes(route.totalDelay)}<small> min</small></strong></div>
                   <div><span>High-traffic roads</span><strong>{route.highTrafficRoads}</strong></div>
                 </div>
-                <p className="rm-route-math">{route.baseTime} min base travel + {route.totalDelay} min simulated delay = <strong>{route.totalCost} min</strong>. UCS explored {route.nodesExplored} junctions.</p>
+                <p className="rm-route-math">{minutes(route.baseTime)} min base travel + {minutes(route.totalDelay)} min simulated delay = <strong>{minutes(route.totalCost)} min</strong>. UCS explored {route.nodesExplored} junctions.</p>
                 <details className="rm-details"><summary>View {route.steps.length} road segments and costs</summary>
                   <div className="table-scroll"><table className="legs" aria-label="Real-map route costs in minutes"><thead><tr><th>Road</th><th>Traffic</th><th className="num">Base</th><th className="num">Delay</th><th className="num">Total</th></tr></thead><tbody>
-                    {route.steps.map(step => <tr key={step.roadId}><td><button className="rm-road-link" type="button" onClick={() => setRoadId(step.roadId)}>{step.name}</button><small>{step.roadId} · {step.from} → {step.to}</small></td><td><span className={`traffic-pill ${step.traffic}`}>{step.traffic}</span></td><td className="num">{step.baseTravelTime}</td><td className="num">+{step.trafficDelay}</td><td className="num total">{step.cumulativeCost}</td></tr>)}
+                    {route.steps.map(step => <tr key={step.roadId}><td><button className="rm-road-link" type="button" onClick={() => setRoadId(step.roadId)}>{step.name}</button><small>{step.roadId} · {step.from} → {step.to}</small></td><td><span className={`traffic-pill ${step.traffic}`}>{step.traffic}</span></td><td className="num">{minutes(step.baseTravelTime)}</td><td className="num">+{minutes(step.trafficDelay)}</td><td className="num total">{minutes(step.cumulativeCost)}</td></tr>)}
                   </tbody></table></div>
                 </details>
               </div>}
@@ -300,7 +302,7 @@ export default function RealMapNavigationPage() {
             <section className="rm-data-note">
               <strong>About this map</strong>
               <p>Road geometry: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors, ODbL</a>. Place search: Photon. { !pendingLocations && <>Road data: {network.metadata.snapshotDate.slice(0, 10)}.</>} Routing uses the highlighted roads loaded around this trip. Shorter trips work best; loading is limited to 100 km straight-line, 2,500 km², and 15,000 junctions.</p>
-              <p>Base cost assumes 30 km/h and rounds each road segment up to a whole minute. These are demonstration costs, not live arrival estimates. One-way roads are respected; turn restrictions are not modeled. Traffic is simulated, and rerouting starts from the original source. One-time location only; no continuous GPS tracking. Loading a new trip starts a new traffic simulation.</p>
+              <p>Approximate time uses distance at an assumed 30 km/h, without rounding each road segment. Medium traffic takes 1.5× and high traffic 2.5× the normal time on affected roads. Signals, stops and actual driving speeds can change the journey time; this is not a live traffic estimate. One-way roads are respected; turn restrictions are not modeled. Traffic is simulated, and rerouting starts from the original source. One-time location only; no continuous GPS tracking. Loading a new trip starts a new traffic simulation.</p>
             </section>
           </div>
         </main>

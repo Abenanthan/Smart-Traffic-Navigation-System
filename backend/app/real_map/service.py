@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import random
 import math
+import re
 from dataclasses import replace
 
 from ..navigation import NavigationSession, NavigationResult, RerouteDecision
@@ -18,7 +19,7 @@ class GeographicNavigation(NavigationSession):
         # Avoid unnecessary route changes when UCS finds an equal-cost alternative.
         # This keeps a previously UCS-selected path only after the fresh search
         # proves its repriced cost equals the current optimum. No second search.
-        if previous.path != new_route.path and previous_cost_now == new_route.total_cost:
+        if previous.path != new_route.path and previous_cost_now is not None and math.isclose(previous_cost_now, new_route.total_cost, rel_tol=1e-12, abs_tol=1e-12):
             edges = [self.graph.edge_between(a, b) for a, b in zip(previous.path, previous.path[1:])]
             repriced = self._build_route(replace(search, path=previous.path, edges=edges))
             self.active_route = repriced
@@ -93,6 +94,11 @@ class RealMapService:
             # its summary, leaving the full educational replay on AI Simulation.
             if output.get('search'):
                 output['search'].pop('trace', None)
+            if self.data.metadata['dynamic']:
+                # Round only explanatory text, never the weights or UCS comparisons.
+                output['reason'] = re.sub(r'\d+\.\d{3,}', lambda match: f'{float(match[0]):.2f}', output['reason'])
+                if output.get('trafficUpdate') and output['trafficUpdate'].get('description'):
+                    output['trafficUpdate']['description'] = re.sub(r'\d+\.\d{3,}', lambda match: f'{float(match[0]):.2f}', output['trafficUpdate']['description'])
             self.last_result = output
         else:
             self.last_result = None
