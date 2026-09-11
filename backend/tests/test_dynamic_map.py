@@ -86,7 +86,7 @@ def test_large_or_unsupported_bounds(a, b):
 def test_trip_endpoint_installs_new_graph_and_preserves_old_on_outage(dynamic_data, monkeypatch):
     import app.real_map.api as api
     monkeypatch.setattr(api, '_service', RealMapService())
-    monkeypatch.setattr(api.providers, 'roads', lambda bbox: copy.deepcopy(dynamic_data))
+    monkeypatch.setattr(api.providers, 'roads', lambda bbox, transport_mode='car': copy.deepcopy(dynamic_data))
     client = TestClient(app)
     old_simulation = client.get('/api/network').json()
     response = client.post('/api/real-map/trip', json={'source': point(1), 'destination': point(4)})

@@ -13,6 +13,7 @@ import time
 import httpx
 
 from .graph_builder import distance_km, ROAD_TYPES
+from .travel_time import road_types
 
 
 class ProviderError(ValueError):
@@ -99,8 +100,8 @@ class MapProviders:
             places.append({'name': name, 'latitude': center['lat'], 'longitude': center['lon'], 'distanceKm': round(distance, 2)})
         return sorted(places, key=lambda item: item['distanceKm'])[:12]
 
-    def roads(self, bbox):
-        types = '|'.join(sorted(ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'}))
+    def roads(self, bbox, transport_mode='car'):
+        types = '|'.join(sorted(road_types(transport_mode, ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'})))
         bounds = ','.join(f'{v:.6f}' for v in bbox)
         return self._overpass_request(f'[out:json][timeout:45];way[highway~"^({types})$"]({bounds});out geom;')
 

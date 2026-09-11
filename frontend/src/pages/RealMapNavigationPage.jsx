@@ -26,6 +26,7 @@ export default function RealMapNavigationPage() {
   const [updatedAt, setUpdatedAt] = useState(null)
   const lock = useRef(false)
   const [coordinates, setCoordinates] = useState({ source: null, destination: null })
+  const [transportMode, setTransportMode] = useState('car')
   const [currentLocation, setCurrentLocation] = useState(null)
   const [focusLocation, setFocusLocation] = useState(0)
   const [areaVersion, setAreaVersion] = useState(0)
@@ -151,7 +152,7 @@ export default function RealMapNavigationPage() {
     setPickMode(null)
     setAuto(false)
     setSelectionChanged(true)
-    const response = await run('Loading roads for your trip and finding the UCS route…', () => api.findTrip(coordinates.source, coordinates.destination))
+    const response = await run('Loading roads for your trip and finding the UCS route…', () => api.findTrip(coordinates.source, coordinates.destination, transportMode))
     if (response) {
       setFitVersion(v => v + 1)
       setSelectionChanged(false)
@@ -171,6 +172,9 @@ export default function RealMapNavigationPage() {
   const selectedRoad = !pendingLocations && network?.roads.find(road => road.roadId === roadId)
   const route = !pendingLocations ? network?.activeRoute : null
   const nameOf = id => network?.locations.find(node => node.id === id)?.name ?? id
+  const profiles = network?.metadata.transportProfiles || {}
+  const profile = profiles[transportMode]
+  const walking = transportMode === 'walk'
 
   return (
     <div className="real-map-page">
@@ -196,6 +200,15 @@ export default function RealMapNavigationPage() {
             <section className="panel">
               <div className="panel-head"><h2>Where are you heading?</h2></div>
               <form className="panel-body" onSubmit={findRoute}>
+                <div className="field">
+                  <label htmlFor="rm-mode">Mode of transport</label>
+                  <select id="rm-mode" value={transportMode} disabled={!!busy} onChange={event => {
+                    setTransportMode(event.target.value); setSelectionChanged(true); setAuto(false); setPickMode(null); setLocationNote(''); setError('')
+                  }}>
+                    {Object.entries(profiles).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
+                  </select>
+                  <p className="rm-inline-note">{profile?.label}: assumed average {profile?.speedKmh} km/h. {walking ? 'Walking ignores motor-traffic delays. Blocked paths remain unavailable.' : 'Traffic increases travel time on affected roads.'} Changing mode requires a new route.</p>
+                </div>
                 <p className="panel-intro">Search for your start and destination, use your current location, or pick on the map.</p>
                 {[['source', 'From'], ['destination', 'To']].map(([which, label]) => (
                   <div className="field" key={which}>
@@ -225,7 +238,7 @@ export default function RealMapNavigationPage() {
             </section>
 
             <section className="panel">
-              <div className="panel-head"><h2>Traffic simulation</h2><span className="module-tag">1× / 1.5× / 2.5×</span></div>
+              <div className="panel-head"><h2>Traffic simulation</h2><span className="module-tag">{walking ? 'Walking: no congestion delay' : '1× / 1.5× / 2.5×'}</span></div>
               <div className="panel-body">
                 <p className="panel-intro">Click a colored road on the map or choose a segment below.</p>
                 <div className="field">
@@ -242,7 +255,7 @@ export default function RealMapNavigationPage() {
                 <div className="level-picker" role="group" aria-label="New traffic level">
                   {LEVELS.map(([value, label]) => <button key={value} type="button" className={`level-option ${value} ${level === value ? 'selected' : ''}`} aria-pressed={level === value} disabled={!!busy} onClick={() => setLevel(value)}><span className={`dot ${value}`} />{label}</button>)}
                 </div>
-                <p className="delay-note">{LEVELS.find(item => item[0] === level)[2]}{level === 'blocked' ? ' to routing' : ''}</p>
+                <p className="delay-note">{walking && level !== 'blocked' ? 'No motor-traffic delay added to walking time' : LEVELS.find(item => item[0] === level)[2]}{level === 'blocked' ? ' to routing' : ''}</p>
                 <button className="primary" type="button" disabled={!!busy || !roadId || !!pendingLocations} onClick={() => run('Updating road costs and rerouting with UCS…', () => api.updateTraffic(roadId, level))}>Apply traffic change</button>
                 <div className="button-row rm-secondary-actions">
                   <button type="button" disabled={!!busy || !!pendingLocations} onClick={() => run('Simulating a traffic change…', api.simulate)}>Simulate change</button>
@@ -281,7 +294,7 @@ export default function RealMapNavigationPage() {
             </section>
 
             <section className="panel rm-route-panel" aria-label="Real-map route information">
-              <div className="panel-head"><h2>Your route</h2><span className="module-tag">Uniform Cost Search</span></div>
+              <div className="panel-head"><h2>Your route{route ? ` · ${profiles[route.transportMode]?.label || ''}` : ''}</h2><span className="module-tag">Uniform Cost Search</span></div>
               {!route ? <div className="empty-state">{result && !result.success && !pendingLocations ? 'No route to display. Adjust the locations or reopen blocked roads, then try again.' : 'Choose your locations and select Find optimal route to see the least-cost path.'}</div> : <div className="panel-body">
                 <div className="rm-route-endpoints"><strong>{coordinates.source?.name || nameOf(route.source)}</strong><span aria-hidden="true">→</span><strong>{coordinates.destination?.name || nameOf(route.destination)}</strong></div>
                 <div className="rm-stats">
@@ -302,7 +315,7 @@ export default function RealMapNavigationPage() {
             <section className="rm-data-note">
               <strong>About this map</strong>
               <p>Road geometry: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors, ODbL</a>. Place search: Photon. { !pendingLocations && <>Road data: {network.metadata.snapshotDate.slice(0, 10)}.</>} Routing uses the highlighted roads loaded around this trip. Shorter trips work best; loading is limited to 100 km straight-line, 2,500 km², and 15,000 junctions.</p>
-              <p>Approximate time uses distance at an assumed 30 km/h, without rounding each road segment. Medium traffic takes 1.5× and high traffic 2.5× the normal time on affected roads. Signals, stops and actual driving speeds can change the journey time; this is not a live traffic estimate. One-way roads are respected; turn restrictions are not modeled. Traffic is simulated, and rerouting starts from the original source. One-time location only; no continuous GPS tracking. Loading a new trip starts a new traffic simulation.</p>
+              <p>Approximate time uses distance and the selected mode's assumed speed, without rounding each road segment. For motor vehicles, medium traffic takes 1.5× and high traffic 2.5× the normal time. Walking ignores these delays and uses pedestrian-accessible roads and paths. Signals, stops, terrain and actual speeds can change journey time; this is not a live traffic estimate. Mapped mode-specific access and direction rules are used; turn restrictions and node barriers are not modeled. Rerouting starts from the selected source. One-time location only; no continuous GPS tracking. Loading a new trip starts a new traffic simulation.</p>
             </section>
           </div>
         </main>

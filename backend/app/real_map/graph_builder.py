@@ -14,7 +14,7 @@ from ..models import Node, Road
 from ..road_network import RoadNetwork
 from ..traffic_data import TrafficData
 from ..weighted_graph import WeightedGraph
-from .travel_time import TravelTimeRoad, TravelTimeTraffic
+from .travel_time import TravelTimeRoad, TravelTimeTraffic, TRANSPORT_PROFILES, road_types, access_and_direction
 
 BBOX = (12.995, 80.260, 13.010, 80.278)  # south, west, north, east
 SPEED_KMH = 30
@@ -66,7 +66,11 @@ class GeographicData:
     metadata: dict
 
 
-def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
+def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=(), transport_mode='car'):
+    if transport_mode not in TRANSPORT_PROFILES:
+        raise ValueError('Choose Car, Two-wheeler, or Walking.')
+    profile = TRANSPORT_PROFILES[transport_mode]
+    speed = profile['speedKmh'] if dynamic else SPEED_KMH
     if not isinstance(data, dict) or not isinstance(data.get('elements'), list):
         raise ValueError('Map data must contain an OSM elements list.')
     if not 0 < len(data['elements']) <= (30000 if dynamic else 2000):
@@ -79,13 +83,15 @@ def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
         if way.get('type') != 'way':
             continue
         tags = way.get('tags', {})
-        if tags.get('highway') not in (ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'} if dynamic else ROAD_TYPES):
+        if tags.get('highway') not in (road_types(transport_mode, ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'}) if dynamic else ROAD_TYPES):
             continue
         # Restrictive access and conditional permissions are conservatively omitted.
         access = tags.get('motorcar', tags.get('motor_vehicle', tags.get('vehicle', tags.get('access', 'yes'))))
+        direction = tags.get('oneway', 'yes' if tags.get('junction') == 'roundabout' else 'no')
+        if dynamic:
+            access, direction = access_and_direction(tags, transport_mode)
         if access not in ('yes', 'permissive', 'designated') or any('conditional' in k for k in tags):
             continue
-        direction = tags.get('oneway', 'yes' if tags.get('junction') == 'roundabout' else 'no')
         if direction not in ('yes', '1', 'true', '-1', 'no', '0', 'false'):
             continue  # e.g. reversible roads need a time-dependent model
         ids, geometry = way.get('nodes', []), way.get('geometry', [])
@@ -160,13 +166,14 @@ def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
         names[shape[0]].add(name)
         names[shape[-1]].add(name)
         road_type = TravelTimeRoad if dynamic else Road
-        minutes = length / SPEED_KMH * 60
-        roads.append(road_type(road_id, a, b, length, minutes if dynamic else max(1, math.ceil(minutes))))
+        minutes = length / speed * 60
+        kwargs = {'transport_mode': transport_mode} if dynamic else {}
+        roads.append(road_type(road_id, a, b, length, minutes if dynamic else max(1, math.ceil(minutes)), **kwargs))
         pairs.add(pair)
         details[road_id] = {
             'name': name, 'osmWayId': way_id, 'geometry': geometry,
             'oneWay': direction in ('yes', '1', 'true', '-1'),
-            'assumedSpeedKmh': SPEED_KMH,
+            'assumedSpeedKmh': speed,
         }
 
     for way_id, tags, direction, nodes in parts:
@@ -187,9 +194,10 @@ def build_geographic_graph(data, bbox=BBOX, *, dynamic=False, anchor_points=()):
         'source': 'OpenStreetMap contributors', 'license': 'ODbL 1.0',
         'sourceUrl': 'https://www.openstreetmap.org/copyright',
         'snapshotDate': data.get('osm3s', {}).get('timestamp_osm_base', 'unknown'),
-        'assumedSpeedKmh': SPEED_KMH,
+        'assumedSpeedKmh': speed, 'transportMode': transport_mode,
+        'transportProfiles': TRANSPORT_PROFILES,
         'baseTimeRounding': 'No per-segment rounding; fractional minutes.' if dynamic else 'Ceiling to whole minutes; minimum 1 minute per graph road.',
-        'trafficMultipliers': {'low': 1, 'medium': 1.5, 'high': 2.5} if dynamic else None,
+        'trafficMultipliers': profile['trafficMultipliers'] if dynamic else None,
         'trafficMode': 'Simulated Real-Time Traffic', 'reroutingOrigin': 'Original selected source',
     }
     return GeographicData(network, traffic, graph, {id: coordinates[osm] for osm, id in node_ids.items()}, details, metadata)

@@ -34,11 +34,11 @@ class GeographicNavigation(NavigationSession):
 
 
 class RealMapService:
-    def __init__(self, data=None, *, bbox=BBOX, dynamic=False, anchor_points=()):
+    def __init__(self, data=None, *, bbox=BBOX, dynamic=False, anchor_points=(), transport_mode='car'):
         if data is None:
             with DATA_FILE.open(encoding='utf-8-sig') as handle:
                 data = json.load(handle)
-        self.data = build_geographic_graph(data, bbox, dynamic=dynamic, anchor_points=anchor_points)
+        self.data = build_geographic_graph(data, bbox, dynamic=dynamic, anchor_points=anchor_points, transport_mode=transport_mode)
         self.session = GeographicNavigation(self.data.network, self.data.traffic, self.data.graph)
         if dynamic:
             from .dynamic_navigation import DynamicNavigation
@@ -82,6 +82,8 @@ class RealMapService:
             steps.append({**step.to_dict(), 'name': detail['name'], 'oneWay': detail['oneWay']})
         return {
             **route.to_dict(), 'geometry': geometry, 'steps': steps,
+            'transportMode': self.data.metadata['transportMode'],
+            'assumedSpeedKmh': self.data.metadata['assumedSpeedKmh'],
             'highTrafficRoads': sum(step.traffic == 'high' for step in route.steps),
         }
 

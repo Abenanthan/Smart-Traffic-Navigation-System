@@ -47,6 +47,7 @@ class SearchBody(BaseModel):
 class TripBody(BaseModel):
     source: Coordinate
     destination: Coordinate
+    transportMode: Literal['car', 'two_wheeler', 'walk'] = 'car'
 
 
 class TrafficBody(BaseModel):
@@ -104,8 +105,8 @@ def trip(body: TripBody):
     source, destination = body.source.model_dump(), body.destination.model_dump()
     try:
         bbox = trip_bounds(source, destination)
-        data = providers.roads(bbox)
-        candidate = RealMapService(data, bbox=bbox, dynamic=True,
+        data = providers.roads(bbox, body.transportMode)
+        candidate = RealMapService(data, bbox=bbox, dynamic=True, transport_mode=body.transportMode,
                                    anchor_points=([source['latitude'], source['longitude']], [destination['latitude'], destination['longitude']]))
         response = candidate.find_route(source, destination)
         # A failed attempt never leaves an old route in the returned graph.
