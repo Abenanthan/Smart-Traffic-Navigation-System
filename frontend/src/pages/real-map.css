@@ -1,10 +1,15 @@
 /* Scoped to the new experience: the original simulation stylesheet is unchanged. */
 .real-map-page { min-height: 100vh; }
-.rm-transport-control { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 8px 24px; align-items: center; margin: 0; }
-.rm-transport-control > label { grid-column: 1 / -1; margin: 0; }
+.rm-transport-control { display: grid; gap: 12px; margin: 0; }
 .rm-transport-control .rm-inline-note { margin: 0; }
-@media (max-width: 800px) {
-  .rm-transport-control { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.rm-mode-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.real-map-page .rm-mode-option { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; padding: 12px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font-size: 14px; font-weight: 600; }
+.real-map-page .rm-mode-option:hover:not(:disabled) { background: var(--highlight); }
+.real-map-page .rm-mode-option[aria-pressed='true'] { background: var(--highlight); border: 2px solid var(--primary); padding: 11px 7px; }
+.rm-mode-emoji { font-size: 26px; line-height: 1.2; }
+@media (max-width: 600px) {
+  .rm-mode-options { gap: 6px; }
+  .real-map-page .rm-mode-option { flex-direction: column; gap: 6px; font-size: 12px; min-height: 80px; }
 }
 .rm-search-row { display: flex; gap: 6px; }
 .rm-search-row input { min-width: 0; flex: 1; width: 100%; padding: 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }

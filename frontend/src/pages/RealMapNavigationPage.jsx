@@ -287,12 +287,16 @@ export default function RealMapNavigationPage() {
             <section className="panel rm-transport-panel" aria-label="Transport selection">
               <div className="panel-body">
                 <div className="field rm-transport-control">
-                  <label htmlFor="rm-mode">Mode of transport</label>
-                  <select id="rm-mode" value={transportMode} disabled={!!busy} onChange={event => {
-                    setTransportMode(event.target.value); setSelectionChanged(true); setAuto(false); setPickMode(null); setLocationNote(''); setError('')
-                  }}>
-                    {Object.entries(profiles).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
-                  </select>
+                  <strong id="rm-mode-label">Mode of transport</strong>
+                  <div className="rm-mode-options" role="group" aria-labelledby="rm-mode-label">
+                    {Object.entries(profiles).map(([id, item]) => <button key={id} type="button" className="rm-mode-option" aria-pressed={transportMode === id} disabled={!!busy} onClick={() => {
+                      if (transportMode === id) return
+                      setTransportMode(id); setSelectionChanged(true); setAuto(false); setPickMode(null); setLocationNote(''); setError('')
+                    }}>
+                      <span className="rm-mode-emoji" aria-hidden="true">{{ car: '🚗', two_wheeler: '🛵', walk: '🚶' }[id]}</span>
+                      <span>{item.label}</span>
+                    </button>)}
+                  </div>
                   <p className="rm-inline-note">{profile?.label}: assumed average {profile?.speedKmh} km/h. {walking ? 'Walking ignores motor-traffic delays. Blocked paths remain unavailable.' : 'Traffic increases travel time on affected roads.'} Changing mode requires a new route.</p>
                 </div>
               </div>
