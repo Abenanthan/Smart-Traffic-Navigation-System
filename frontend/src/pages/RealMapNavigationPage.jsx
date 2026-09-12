@@ -200,15 +200,6 @@ export default function RealMapNavigationPage() {
             <section className="panel">
               <div className="panel-head"><h2>Where are you heading?</h2></div>
               <form className="panel-body" onSubmit={findRoute}>
-                <div className="field">
-                  <label htmlFor="rm-mode">Mode of transport</label>
-                  <select id="rm-mode" value={transportMode} disabled={!!busy} onChange={event => {
-                    setTransportMode(event.target.value); setSelectionChanged(true); setAuto(false); setPickMode(null); setLocationNote(''); setError('')
-                  }}>
-                    {Object.entries(profiles).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
-                  </select>
-                  <p className="rm-inline-note">{profile?.label}: assumed average {profile?.speedKmh} km/h. {walking ? 'Walking ignores motor-traffic delays. Blocked paths remain unavailable.' : 'Traffic increases travel time on affected roads.'} Changing mode requires a new route.</p>
-                </div>
                 <p className="panel-intro">Search for your start and destination, use your current location, or pick on the map.</p>
                 {[['source', 'From'], ['destination', 'To']].map(([which, label]) => (
                   <div className="field" key={which}>
@@ -290,6 +281,20 @@ export default function RealMapNavigationPage() {
                 {LEVELS.map(([value, label]) => <span className="legend-item" key={value}><span className={`dot ${value}`} />{label} <span className="rm-count">{pendingLocations ? '—' : network.trafficCounts[value]}</span></span>)}
                 <span className="legend-item"><span className="rm-route-swatch" />UCS route</span>
                 <span className="rm-map-caption">Drag to pan · + / − to zoom</span>
+              </div>
+            </section>
+
+            <section className="panel rm-transport-panel" aria-label="Transport selection">
+              <div className="panel-body">
+                <div className="field rm-transport-control">
+                  <label htmlFor="rm-mode">Mode of transport</label>
+                  <select id="rm-mode" value={transportMode} disabled={!!busy} onChange={event => {
+                    setTransportMode(event.target.value); setSelectionChanged(true); setAuto(false); setPickMode(null); setLocationNote(''); setError('')
+                  }}>
+                    {Object.entries(profiles).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
+                  </select>
+                  <p className="rm-inline-note">{profile?.label}: assumed average {profile?.speedKmh} km/h. {walking ? 'Walking ignores motor-traffic delays. Blocked paths remain unavailable.' : 'Traffic increases travel time on affected roads.'} Changing mode requires a new route.</p>
+                </div>
               </div>
             </section>
 

@@ -24,4 +24,15 @@ export const reset = () => request('reset', {})
 export const resolveCoordinate = (coordinate, role) => request('resolve', { ...coordinate, role })
 export const searchPlaces = (query, bias, signal) => request('search', { query, bias }, signal)
 export const nearbyPlaces = (coordinate, signal) => request('nearby', coordinate, signal)
-export const findTrip = (source, destination, transportMode = 'car') => request('trip', { source, destination, transportMode })
+export async function findTrip(source, destination, transportMode = 'car') {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 65000)
+  try {
+    return await request('trip', { source, destination, transportMode }, controller.signal)
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Route loading took too long. Please retry in a moment; your selected places are kept.')
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}

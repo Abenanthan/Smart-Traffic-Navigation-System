@@ -7,6 +7,8 @@ from collections import OrderedDict
 import json
 import math
 import os
+import logging
+from urllib.parse import urlsplit
 from threading import Lock
 import time
 
@@ -20,6 +22,14 @@ class ProviderError(ValueError):
     pass
 
 
+class ProviderLimitError(ProviderError):
+    """A request that cannot be fixed by contacting another server."""
+
+
+class ProviderBusyError(ProviderError):
+    """A local request occupies this host; it is not an upstream failure."""
+
+
 class MapProviders:
     def __init__(self):
         self.photon = os.getenv('PHOTON_URL', 'https://photon.komoot.io').rstrip('/')
@@ -27,37 +37,66 @@ class MapProviders:
         self.overpass_fallback = os.getenv('OVERPASS_FALLBACK_URL', 'https://overpass.kumi.systems/api/interpreter')
         self.lock = Lock()
         self.cache = OrderedDict()
-        self.last_request = 0
+        self.host_locks = {}
+        self.last_requests = {}
+        self.preferred_overpass = self.overpass
+        self.failed_until = {}
 
-    def _request(self, url, *, params=None, query=None):
-        key = (url, json.dumps(params, sort_keys=True), query)
+    def _cache_key(self, url, params, query):
+        return (url, json.dumps(params, sort_keys=True), query)
+
+    def _cached(self, url, params=None, query=None):
+        key = self._cache_key(url, params, query)
         with self.lock:
             cached = self.cache.get(key)
             if cached and time.monotonic() - cached[0] < 900:
                 self.cache.move_to_end(key)
                 return cached[1]
-            time.sleep(max(0, 1.1 - (time.monotonic() - self.last_request)))
-            self.last_request = time.monotonic()
+        return None
+
+    def _request(self, url, *, params=None, query=None):
+        cached = self._cached(url, params, query)
+        if cached is not None:
+            return cached
+        host = urlsplit(url).netloc
+        with self.lock:
+            host_lock = self.host_locks.setdefault(host, Lock())
+        # A nearby lookup must never queue a trip behind a full network timeout.
+        if not host_lock.acquire(timeout=4):
+            raise ProviderBusyError('The road server is handling another request. Please retry in a moment.')
+        try:
+            cached = self._cached(url, params, query)
+            if cached is not None:
+                return cached
+            time.sleep(max(0, 1.1 - (time.monotonic() - self.last_requests.get(host, 0))))
+            self.last_requests[host] = time.monotonic()
+            started = time.monotonic()
             try:
-                with httpx.Client(timeout=httpx.Timeout(55, connect=10), headers={'User-Agent': 'SmartTrafficUCS-Academic/1.0', 'Accept': 'application/json'}, follow_redirects=True) as client:
+                with httpx.Client(timeout=httpx.Timeout(22, connect=5), headers={'User-Agent': 'SmartTrafficUCS-Academic/1.0', 'Accept': 'application/json'}, follow_redirects=True) as client:
                     with client.stream('POST' if query else 'GET', url, params=params, data={'data': query} if query else None) as response:
                         response.raise_for_status()
                         body = bytearray()
                         for chunk in response.iter_bytes():
+                            if time.monotonic() - started > 25:
+                                raise ProviderError('The road-data download took too long. Please retry.')
                             body.extend(chunk)
                             if len(body) > 12_000_000:
-                                raise ProviderError('This area has too much road data. Choose a shorter trip or a less dense area.')
+                                raise ProviderLimitError('This area has too much road data. Choose a shorter trip or a less dense area.')
                         value = json.loads(body)
             except (httpx.HTTPError, ValueError) as error:
                 if isinstance(error, ProviderError):
                     raise
-                raise ProviderError('The map data provider is unavailable or busy. Wait a moment and retry. Your selections are kept.') from error
+                logging.getLogger(__name__).warning('Map provider %s failed: %s', host, type(error).__name__)
+                raise ProviderError('Could not download map data. The road server timed out or could not be reached. Check the connection and retry; your selections are kept.') from error
             if isinstance(value, dict) and value.get('remark'):
-                raise ProviderError('The road provider could not finish this request. Retry or choose a shorter trip.')
-            self.cache[key] = (time.monotonic(), value, len(body))
-            while len(self.cache) > 32 or sum(item[2] for item in self.cache.values()) > 24_000_000:
-                self.cache.popitem(last=False)
+                raise ProviderError('The road server could not complete this area in time. Retry or choose a shorter trip.')
+            with self.lock:
+                self.cache[self._cache_key(url, params, query)] = (time.monotonic(), value, len(body))
+                while len(self.cache) > 32 or sum(item[2] for item in self.cache.values()) > 24_000_000:
+                    self.cache.popitem(last=False)
             return value
+        finally:
+            host_lock.release()
 
     def search(self, query, bias=None):
         params = {'q': query, 'limit': 8, 'lang': 'en'}
@@ -81,7 +120,7 @@ class MapProviders:
     def nearby(self, point):
         lat, lon = point['latitude'], point['longitude']
         # A small local set of named areas and useful destinations, not all POIs.
-        query = f'''[out:json][timeout:25];(
+        query = f'''[out:json][timeout:15];(
           node(around:2000,{lat},{lon})[place~"^(suburb|neighbourhood|quarter|village|town)$"][name];
           nwr(around:1500,{lat},{lon})[amenity~"^(hospital|school|college|university|bus_station)$"][name];
           node(around:1500,{lat},{lon})[railway=station][name];
@@ -103,15 +142,37 @@ class MapProviders:
     def roads(self, bbox, transport_mode='car'):
         types = '|'.join(sorted(road_types(transport_mode, ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'})))
         bounds = ','.join(f'{v:.6f}' for v in bbox)
-        return self._overpass_request(f'[out:json][timeout:45];way[highway~"^({types})$"]({bounds});out geom;')
+        return self._overpass_request(f'[out:json][timeout:15];way[highway~"^({types})$"]({bounds});out geom;')
 
     def _overpass_request(self, query):
-        try:
-            return self._request(self.overpass, query=query)
-        except ProviderError:
-            if not self.overpass_fallback or self.overpass_fallback == self.overpass:
+        urls = list(dict.fromkeys(url for url in (self.preferred_overpass, self.overpass, self.overpass_fallback) if url))
+        # Check every server's cache before contacting any server again.
+        for url in urls:
+            cached = self._cached(url, query=query)
+            if cached is not None:
+                return cached
+        available = [url for url in urls if self.failed_until.get(url, 0) <= time.monotonic()]
+        if not available:
+            raise ProviderError('Both road-data servers recently failed. Wait about a minute before retrying; your selections are kept.')
+        deferred = set()
+        for url in available:
+            try:
+                data = self._request(url, query=query)
+                self.preferred_overpass = url
+                self.failed_until.pop(url, None)
+                return data
+            except ProviderLimitError:
                 raise
-            return self._request(self.overpass_fallback, query=query)
+            except ProviderBusyError as error:
+                last_error = error
+                # Try another host first, then revisit the occupied host once.
+                if url not in deferred:
+                    deferred.add(url)
+                    available.append(url)
+            except ProviderError as error:
+                last_error = error
+                self.failed_until[url] = time.monotonic() + 60
+        raise last_error
 
 
 def trip_bounds(source, destination, padding_km=2):

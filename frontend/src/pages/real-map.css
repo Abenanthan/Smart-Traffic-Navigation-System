@@ -1,5 +1,11 @@
 /* Scoped to the new experience: the original simulation stylesheet is unchanged. */
 .real-map-page { min-height: 100vh; }
+.rm-transport-control { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 8px 24px; align-items: center; margin: 0; }
+.rm-transport-control > label { grid-column: 1 / -1; margin: 0; }
+.rm-transport-control .rm-inline-note { margin: 0; }
+@media (max-width: 800px) {
+  .rm-transport-control { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
 .rm-search-row { display: flex; gap: 6px; }
 .rm-search-row input { min-width: 0; flex: 1; width: 100%; padding: 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
 .rm-search-row input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
