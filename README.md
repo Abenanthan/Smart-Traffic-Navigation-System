@@ -129,6 +129,7 @@ creates a second, dynamic one.
    Sports Stadium, testing the goal at generation instead of at expansion returns a route
    6 minutes worse. The two versions disagree on 31 of the 182 ordered location pairs.
 
+
 ---
 
 ## Project layout
