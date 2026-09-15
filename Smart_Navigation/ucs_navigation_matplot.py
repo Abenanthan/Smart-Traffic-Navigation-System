@@ -7,10 +7,24 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+#UCS ALGORITHM
 
-# ---------------------------------------------------------
-# UCS ALGORITHM (UNCHANGED — identical logic to your pseudocode)
-# ---------------------------------------------------------
+#UCS(Graph, start_node, goal_node):
+#1. create an empty priority queue Q (lowest cost comes out first)
+#2. create an empty set VISITED
+#3. insert (start_node, cost = 0) into Q
+#4. while Q is not empty:
+#current_node, current_cost ← remove the lowest-cost pair from Q
+#     4.1 if current_node == goal_node:
+#     return "Goal Found" (cost = current_cost)
+#     4.2 if current_node not in VISITED:
+#            add current_node to VISITED
+#            4.2.1 for each neighbor in Graph.neighbors(current_node):
+#                     4.2.1.1 if neighbor not in VISITED:
+#                                new_cost ← current_cost + cost(current_node, neighbor)
+#                                insert (neighbor, new_cost) into Q
+#   return "Goal Not Found"
+
 def ucs(graph, start_node, goal_node):
     """
     Uniform Cost Search (UCS)
@@ -43,10 +57,9 @@ def ucs(graph, start_node, goal_node):
     return "Goal Not Found", None, None
 
 
-# ---------------------------------------------------------
-# SAMPLE GRAPH + FIXED NODE POSITIONS (for plotting)
-# Replace this with your real road network / map data.
-# ---------------------------------------------------------
+
+# SAMPLE GRAPH
+
 GRAPH = {
     "A": [("B", 4), ("C", 2)],
     "B": [("D", 5)],
@@ -66,9 +79,8 @@ NODE_POSITIONS = {
 }
 
 
-# ---------------------------------------------------------
 # TKINTER UI + MATPLOTLIB GRAPH VIEW
-# ---------------------------------------------------------
+
 class UCSApp:
     def __init__(self, root):
         self.root = root
@@ -76,7 +88,6 @@ class UCSApp:
 
         nodes = list(GRAPH.keys())
 
-        # --- Controls frame ---
         controls = tk.Frame(root)
         controls.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
 
@@ -97,7 +108,7 @@ class UCSApp:
                                       font=("Arial", 11))
         self.result_label.pack(side=tk.TOP, pady=(0, 5))
 
-        # --- Matplotlib figure embedded in the Tkinter window ---
+        
         self.fig, self.ax = plt.subplots(figsize=(7, 4.5))
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().pack(padx=10, pady=10)
@@ -109,7 +120,7 @@ class UCSApp:
         highlight_path = highlight_path or []
         highlight_edges = set(zip(highlight_path, highlight_path[1:]))
 
-        # draw edges
+        
         for node, neighbors in GRAPH.items():
             x1, y1 = NODE_POSITIONS[node]
             for neighbor, cost in neighbors:
@@ -127,7 +138,7 @@ class UCSApp:
                               ha="center", va="center",
                               bbox=dict(boxstyle="round,pad=0.1", fc="white", ec="none"))
 
-        # draw nodes
+        
         for node, (x, y) in NODE_POSITIONS.items():
             face = "lightgreen" if node in highlight_path else "lightblue"
             self.ax.scatter([x], [y], s=900, color=face, edgecolors="black", zorder=3)
