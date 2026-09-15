@@ -26,31 +26,23 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 #   return "Goal Not Found"
 
 def ucs(graph, start_node, goal_node):
-    """
-    Uniform Cost Search (UCS)
+    
+    Q = []                      #  empty priority queue
+    VISITED = set()             #  empty visited set
 
-    graph: dict of {node: [(neighbor, cost), ...]}
-    start_node: starting node
-    goal_node: goal node
+    heapq.heappush(Q, (0, start_node, [start_node]))    # the starting node is pushed into the queue
 
-    Returns (result_string, cost, path)
-    """
-    Q = []                      # 1. empty priority queue
-    VISITED = set()             # 2. empty visited set
-
-    heapq.heappush(Q, (0, start_node, [start_node]))   # 3. insert start
-
-    while Q:                                            # 4. while Q not empty
+    while Q:                                            # while Q is not empty
         current_cost, current_node, path = heapq.heappop(Q)
 
-        if current_node == goal_node:                   # 4.1
+        if current_node == goal_node:                   
             return "Goal Found", current_cost, path
 
-        if current_node not in VISITED:                 # 4.2
+        if current_node not in VISITED:                
             VISITED.add(current_node)
 
-            for neighbor, cost in graph.get(current_node, []):   # 4.2.1
-                if neighbor not in VISITED:                       # 4.2.1.1
+            for neighbor, cost in graph.get(current_node, []):   
+                if neighbor not in VISITED:                       
                     new_cost = current_cost + cost
                     heapq.heappush(Q, (new_cost, neighbor, path + [neighbor]))
 
