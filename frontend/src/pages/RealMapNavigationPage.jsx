@@ -157,7 +157,10 @@ export default function RealMapNavigationPage() {
       setFitVersion(v => v + 1)
       setSelectionChanged(false)
       const snaps = response.snappedLocations
-      if (snaps?.source && snaps?.destination) setLocationNote(`Start matched ${snaps.source.distanceMetres} m from the selected place; destination ${snaps.destination.distanceMetres} m. Travel to and from the matched road points is not included.`)
+      const notes = []
+      if (response.roadDataFallback?.used) notes.push(response.roadDataFallback.message)
+      if (snaps?.source && snaps?.destination) notes.push(`Start matched ${snaps.source.distanceMetres} m from the selected place; destination ${snaps.destination.distanceMetres} m. Travel to and from the matched road points is not included.`)
+      setLocationNote(notes.join(' '))
       if (response.network.requestedPair) {
         setSource(response.network.requestedPair[0])
         setDestination(response.network.requestedPair[1])
@@ -273,7 +276,7 @@ export default function RealMapNavigationPage() {
               <div className="rm-map-tools">
                 <button type="button" className="primary small" disabled={!!busy} onClick={useMyLocation}>Use my location</button>
                 <button type="button" className="ghost small" onClick={() => setAreaVersion(value => value + 1)}>Routing area</button>
-                <span>{!pendingLocations ? `${network.locations.length} junctions · ${network.roads.length} road segments loaded` : 'Choose two places to load their roads'}</span>
+                <span>{!pendingLocations ? `${network.locations.length} junctions · ${network.roads.length} road segments loaded · ${network.metadata.roadCoverage}` : 'Choose two places to load their roads'}</span>
               </div>
               {pickMode && <div className="rm-pick-notice" role="status">Click near a road junction to choose your {pickMode === 'source' ? 'starting point' : 'destination'}. Road matching happens when you find a route.</div>}
               <GeographicMap network={pendingLocations ? { ...network, roads: [] } : network} route={route} source={source} destination={destination} selectedRoad={roadId} onRoadSelect={setRoadId} pickMode={busy ? null : pickMode} onPick={chooseCoordinate} fitVersion={fitVersion} sourceCoordinate={coordinates.source} destinationCoordinate={coordinates.destination} currentLocation={currentLocation} focusLocation={focusLocation} areaVersion={areaVersion} focusPoint={focusPoint} showBounds={!pendingLocations} />

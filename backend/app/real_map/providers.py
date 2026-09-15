@@ -33,8 +33,19 @@ class ProviderBusyError(ProviderError):
 class MapProviders:
     def __init__(self):
         self.photon = os.getenv('PHOTON_URL', 'https://photon.komoot.io').rstrip('/')
-        self.overpass = os.getenv('OVERPASS_URL', 'https://overpass-api.de/api/interpreter')
-        self.overpass_fallback = os.getenv('OVERPASS_FALLBACK_URL', 'https://overpass.kumi.systems/api/interpreter')
+        configured = os.getenv('OVERPASS_URLS', '')
+        defaults = (
+            os.getenv('OVERPASS_URL', 'https://overpass-api.de/api/interpreter'),
+            os.getenv('OVERPASS_FALLBACK_URL', 'https://overpass.private.coffee/api/interpreter'),
+            os.getenv('OVERPASS_SECOND_FALLBACK_URL', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'),
+        )
+        urls = configured.split(',') if configured else defaults
+        self.overpass_urls = list(dict.fromkeys(url.strip() for url in urls if url.strip()))
+        if not self.overpass_urls:
+            raise ValueError('Configure at least one Overpass road-data endpoint.')
+        # Keep these attributes for backwards-compatible configuration and tests.
+        self.overpass = self.overpass_urls[0]
+        self.overpass_fallback = self.overpass_urls[1] if len(self.overpass_urls) > 1 else None
         self.lock = Lock()
         self.cache = OrderedDict()
         self.host_locks = {}
@@ -72,12 +83,14 @@ class MapProviders:
             self.last_requests[host] = time.monotonic()
             started = time.monotonic()
             try:
-                with httpx.Client(timeout=httpx.Timeout(22, connect=5), headers={'User-Agent': 'SmartTrafficUCS-Academic/1.0', 'Accept': 'application/json'}, follow_redirects=True) as client:
+                # Three bounded attempts fit inside the frontend's 65-second trip
+                # timeout, including throttling and graph construction.
+                with httpx.Client(timeout=httpx.Timeout(16, connect=4), headers={'User-Agent': 'SmartTrafficUCS-Academic/1.0', 'Accept': 'application/json'}, follow_redirects=True) as client:
                     with client.stream('POST' if query else 'GET', url, params=params, data={'data': query} if query else None) as response:
                         response.raise_for_status()
                         body = bytearray()
                         for chunk in response.iter_bytes():
-                            if time.monotonic() - started > 25:
+                            if time.monotonic() - started > 18:
                                 raise ProviderError('The road-data download took too long. Please retry.')
                             body.extend(chunk)
                             if len(body) > 12_000_000:
@@ -139,13 +152,49 @@ class MapProviders:
             places.append({'name': name, 'latitude': center['lat'], 'longitude': center['lon'], 'distanceKm': round(distance, 2)})
         return sorted(places, key=lambda item: item['distanceKm'])[:12]
 
-    def roads(self, bbox, transport_mode='car'):
-        types = '|'.join(sorted(road_types(transport_mode, ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'})))
+    def roads(self, bbox, transport_mode='car', source=None, destination=None, compact=False):
+        allowed = road_types(transport_mode, ROAD_TYPES | {'motorway', 'trunk', 'motorway_link', 'trunk_link'})
+        types = '|'.join(sorted(allowed))
         bounds = ','.join(f'{v:.6f}' for v in bbox)
-        return self._overpass_request(f'[out:json][timeout:15];way[highway~"^({types})$"]({bounds});out geom;')
+        distance = distance_km(
+            [source['latitude'], source['longitude']],
+            [destination['latitude'], destination['longitude']],
+        ) if source and destination else 0
+        if (compact or distance > 12) and source and destination:
+            if transport_mode == 'walk':
+                # A bounded pedestrian corridor keeps long walking requests usable
+                # without downloading every street in the enclosing rectangle.
+                steps = max(1, math.ceil(distance / 3))
+                points = [
+                    (source['latitude'] + (destination['latitude'] - source['latitude']) * i / steps,
+                     source['longitude'] + (destination['longitude'] - source['longitude']) * i / steps)
+                    for i in range(steps + 1)
+                ]
+                selections = ''.join(
+                    f'way(around:2200,{lat:.6f},{lon:.6f})[highway~"^({types})$"];'
+                    for lat, lon in points
+                )
+            else:
+                # For longer motor trips, retain local access at both ends and
+                # through roads across the full area. Residential/service roads
+                # in unrelated neighbourhoods caused the previous graph overflow.
+                regional = '|'.join(sorted(allowed & {
+                    'motorway', 'trunk', 'primary', 'secondary', 'tertiary',
+                    'motorway_link', 'trunk_link', 'primary_link',
+                    'secondary_link', 'tertiary_link', 'unclassified',
+                }))
+                selections = (
+                    f'way[highway~"^({regional})$"]({bounds});'
+                    f'way(around:2200,{source["latitude"]:.6f},{source["longitude"]:.6f})[highway~"^({types})$"];'
+                    f'way(around:2200,{destination["latitude"]:.6f},{destination["longitude"]:.6f})[highway~"^({types})$"];'
+                )
+            data = self._overpass_request(f'[out:json][timeout:15];({selections});out geom;')
+            return {**data, '_smartTrafficCoverage': 'long-trip corridor'}
+        data = self._overpass_request(f'[out:json][timeout:15];way[highway~"^({types})$"]({bounds});out geom;')
+        return {**data, '_smartTrafficCoverage': 'full trip area'}
 
     def _overpass_request(self, query):
-        urls = list(dict.fromkeys(url for url in (self.preferred_overpass, self.overpass, self.overpass_fallback) if url))
+        urls = list(dict.fromkeys(url for url in (self.preferred_overpass, *self.overpass_urls) if url))
         # Check every server's cache before contacting any server again.
         for url in urls:
             cached = self._cached(url, query=query)
@@ -153,7 +202,7 @@ class MapProviders:
                 return cached
         available = [url for url in urls if self.failed_until.get(url, 0) <= time.monotonic()]
         if not available:
-            raise ProviderError('Both road-data servers recently failed. Wait about a minute before retrying; your selections are kept.')
+            raise ProviderError('All road-data servers recently failed. Wait about a minute before retrying; your selections are kept.')
         deferred = set()
         for url in available:
             try:

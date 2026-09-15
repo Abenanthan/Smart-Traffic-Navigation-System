@@ -86,7 +86,8 @@ def test_large_or_unsupported_bounds(a, b):
 def test_trip_endpoint_installs_new_graph_and_preserves_old_on_outage(dynamic_data, monkeypatch):
     import app.real_map.api as api
     monkeypatch.setattr(api, '_service', RealMapService())
-    monkeypatch.setattr(api.providers, 'roads', lambda bbox, transport_mode='car': copy.deepcopy(dynamic_data))
+    monkeypatch.setattr(api.providers, 'roads', lambda bbox, transport_mode='car', source=None,
+                        destination=None, compact=False: copy.deepcopy(dynamic_data))
     client = TestClient(app)
     old_simulation = client.get('/api/network').json()
     response = client.post('/api/real-map/trip', json={'source': point(1), 'destination': point(4)})
@@ -96,7 +97,9 @@ def test_trip_endpoint_installs_new_graph_and_preserves_old_on_outage(dynamic_da
     assert client.get('/api/network').json() == old_simulation
     installed = api._service
     monkeypatch.setattr(api.providers, 'roads', Mock(side_effect=ProviderError('Offline')))
-    assert client.post('/api/real-map/trip', json={'source': point(1), 'destination': point(4)}).status_code == 503
+    fallback = client.post('/api/real-map/trip', json={'source': point(1), 'destination': point(4)})
+    assert fallback.status_code == 200
+    assert fallback.json()['roadDataFallback']['used'] is True
     assert api._service is installed
 
 
@@ -140,7 +143,9 @@ def test_provider_fallback(monkeypatch):
     provider = MapProviders()
     request = Mock(side_effect=[ProviderError('busy'), {'elements': []}])
     monkeypatch.setattr(provider, '_request', request)
-    assert provider.roads((1, 2, 3, 4)) == {'elements': []}
+    assert provider.roads((1, 2, 3, 4)) == {
+        'elements': [], '_smartTrafficCoverage': 'full trip area',
+    }
     assert request.call_count == 2
 
 

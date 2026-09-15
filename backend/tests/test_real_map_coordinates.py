@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from test_real_map import small_map, id_at, POINTS, snapshot, way
 from app.real_map.service import RealMapService
+from app.real_map.providers import ProviderError
 
 
 def coordinate(point):
@@ -64,3 +65,37 @@ def test_api_coordinate_contract(small_map, monkeypatch):
     assert response.json()['result']['success']
     for body in ({'latitude': 100, 'longitude': 80}, {**coordinate(1), 'role': 'invalid'}, {'latitude': 51.5, 'longitude': -.12}):
         assert client.post('/api/real-map/resolve', json=body).status_code == 422
+
+
+def test_trip_reuses_loaded_graph_when_all_road_servers_fail(monkeypatch):
+    from app.api import app
+    import app.real_map.api as real_api
+    loaded = RealMapService(
+        snapshot(way(1, [1, 2]), way(2, [2, 4])),
+        bbox=(12.99, 80.25, 13.01, 80.28), dynamic=True, transport_mode='car',
+    )
+    monkeypatch.setattr(real_api, '_service', loaded)
+    monkeypatch.setattr(real_api.providers, 'roads', Mock(side_effect=ProviderError('all servers timed out')))
+    response = TestClient(app).post('/api/real-map/trip', json={
+        'source': coordinate(1), 'destination': coordinate(4), 'transportMode': 'car',
+    })
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['result']['success']
+    assert payload['roadDataFallback']['used'] is True
+    assert real_api._service is loaded
+
+
+def test_trip_does_not_reuse_graph_for_another_transport_mode(monkeypatch):
+    from app.api import app
+    import app.real_map.api as real_api
+    loaded = RealMapService(
+        snapshot(way(1, [1, 2]), way(2, [2, 4])),
+        bbox=(12.99, 80.25, 13.01, 80.28), dynamic=True, transport_mode='car',
+    )
+    monkeypatch.setattr(real_api, '_service', loaded)
+    monkeypatch.setattr(real_api.providers, 'roads', Mock(side_effect=ProviderError('all servers timed out')))
+    response = TestClient(app).post('/api/real-map/trip', json={
+        'source': coordinate(1), 'destination': coordinate(4), 'transportMode': 'walk',
+    })
+    assert response.status_code == 503

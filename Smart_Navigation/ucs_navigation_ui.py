@@ -26,7 +26,8 @@ def ucs(graph, start_node, goal_node):
     return "Goal Not Found", None, None
 
 
-# SAMPLE GRAPH
+# sample graph
+
 
 GRAPH = {
     "A": [("B", 4), ("C", 2)],
@@ -47,9 +48,7 @@ NODE_POSITIONS = {
 }
 
 
-# ---------------------------------------------------------
 # MINIMAL TKINTER UI
-# ---------------------------------------------------------
 class UCSApp:
     def __init__(self, root):
         self.root = root

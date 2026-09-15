@@ -105,15 +105,42 @@ def trip(body: TripBody):
     source, destination = body.source.model_dump(), body.destination.model_dump()
     try:
         bbox = trip_bounds(source, destination)
-        data = providers.roads(bbox, body.transportMode)
-        candidate = RealMapService(data, bbox=bbox, dynamic=True, transport_mode=body.transportMode,
-                                   anchor_points=([source['latitude'], source['longitude']], [destination['latitude'], destination['longitude']]))
+        data = providers.roads(bbox, body.transportMode, source, destination)
+        try:
+            candidate = RealMapService(data, bbox=bbox, dynamic=True, transport_mode=body.transportMode,
+                                       anchor_points=([source['latitude'], source['longitude']], [destination['latitude'], destination['longitude']]))
+        except ValueError as error:
+            if 'graph size limit' not in str(error) or data.get('_smartTrafficCoverage') == 'long-trip corridor':
+                raise
+            # A dense short-trip rectangle can also exceed the graph cap. Retry
+            # once with the bounded corridor query before returning an error.
+            data = providers.roads(bbox, body.transportMode, source, destination, compact=True)
+            candidate = RealMapService(data, bbox=bbox, dynamic=True, transport_mode=body.transportMode,
+                                       anchor_points=([source['latitude'], source['longitude']], [destination['latitude'], destination['longitude']]))
         response = candidate.find_route(source, destination)
         # A failed attempt never leaves an old route in the returned graph.
         with _lock:
             _service = candidate
         return response
     except ProviderError as error:
+        # If this area was loaded successfully earlier, it is still a valid UCS
+        # graph. Reuse it during a temporary provider outage after checking both
+        # endpoints can be snapped; failed fallbacks must not erase the old route.
+        with _lock:
+            current = _service
+            if (current is not None and current.data.metadata.get('dynamic') and
+                    current.data.metadata.get('transportMode') == body.transportMode):
+                try:
+                    current.resolve_coordinate(source['latitude'], source['longitude'], 'source')
+                    current.resolve_coordinate(destination['latitude'], destination['longitude'], 'destination')
+                    response = current.find_route(source, destination)
+                    response['roadDataFallback'] = {
+                        'used': True,
+                        'message': 'The live road server was unavailable, so UCS used the road graph already loaded for this area.',
+                    }
+                    return response
+                except ValueError:
+                    pass
         raise HTTPException(503, str(error)) from error
     except ValueError as error:
         raise HTTPException(422, str(error)) from error

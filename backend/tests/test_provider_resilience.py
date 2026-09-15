@@ -42,6 +42,26 @@ def test_successful_alternate_is_preferred_on_next_request(monkeypatch):
     assert [c.args[0] for c in request.call_args_list] == [provider.overpass, provider.overpass_fallback, provider.overpass_fallback]
 
 
+def test_default_pool_has_three_current_distinct_endpoints(monkeypatch):
+    for name in ('OVERPASS_URLS', 'OVERPASS_URL', 'OVERPASS_FALLBACK_URL', 'OVERPASS_SECOND_FALLBACK_URL'):
+        monkeypatch.delenv(name, raising=False)
+    provider = MapProviders()
+    assert provider.overpass_urls == [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.private.coffee/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    ]
+
+
+def test_third_server_is_used_after_two_timeouts(monkeypatch):
+    provider = MapProviders()
+    request = Mock(side_effect=[ProviderError('timeout'), ProviderError('timeout'), {'elements': []}])
+    monkeypatch.setattr(provider, '_request', request)
+    assert provider._overpass_request('roads') == {'elements': []}
+    assert [call.args[0] for call in request.call_args_list] == provider.overpass_urls
+    assert provider.preferred_overpass == provider.overpass_urls[2]
+
+
 def test_cached_alternate_avoids_retrying_failed_primary(monkeypatch):
     provider = MapProviders()
     value = {'elements': []}
@@ -68,12 +88,13 @@ def test_failed_servers_cool_down_instead_of_repeated_long_waits(monkeypatch):
         provider._overpass_request('one')
     with pytest.raises(ProviderError, match='minute'):
         provider._overpass_request('two')
-    assert request.call_count == 2
+    assert request.call_count == len(provider.overpass_urls)
 
 
 def test_occupied_healthy_server_is_revisited_after_alternate_fails(monkeypatch):
     provider = MapProviders()
-    request = Mock(side_effect=[ProviderBusyError('nearby running'), ProviderError('timeout'), {'elements': []}])
+    request = Mock(side_effect=[ProviderBusyError('nearby running'), ProviderError('timeout'),
+                                ProviderError('timeout'), {'elements': []}])
     monkeypatch.setattr(provider, '_request', request)
     assert provider._overpass_request('roads') == {'elements': []}
     assert provider.overpass not in provider.failed_until

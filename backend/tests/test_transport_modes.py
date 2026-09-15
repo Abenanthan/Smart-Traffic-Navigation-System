@@ -62,11 +62,35 @@ def test_walk_ucs_and_traffic_keep_profile():
 def test_provider_walking_query_includes_paths(monkeypatch):
     provider = MapProviders()
     queries = []
-    monkeypatch.setattr(provider, '_overpass_request', lambda query: queries.append(query))
+    monkeypatch.setattr(provider, '_overpass_request', lambda query: queries.append(query) or {'elements': []})
     provider.roads((1, 2, 3, 4), 'walk')
     assert 'footway' in queries[0] and 'motorway' not in queries[0]
     provider.roads((1, 2, 3, 4), 'car')
     assert 'footway' not in queries[1]
+
+
+def test_long_motor_trip_uses_regional_roads_and_endpoint_access(monkeypatch):
+    provider = MapProviders()
+    queries = []
+    monkeypatch.setattr(provider, '_overpass_request', lambda query: queries.append(query) or {'elements': []})
+    source = {'latitude': 13.0, 'longitude': 80.2}
+    destination = {'latitude': 13.2, 'longitude': 80.2}
+    data = provider.roads((12.98, 80.18, 13.22, 80.22), 'car', source, destination)
+    assert data['_smartTrafficCoverage'] == 'long-trip corridor'
+    assert queries[0].count('around:2200') == 2
+    assert 'motorway' in queries[0] and 'service' in queries[0]
+
+
+def test_long_walking_trip_uses_bounded_overlapping_corridor(monkeypatch):
+    provider = MapProviders()
+    queries = []
+    monkeypatch.setattr(provider, '_overpass_request', lambda query: queries.append(query) or {'elements': []})
+    source = {'latitude': 13.0, 'longitude': 80.2}
+    destination = {'latitude': 13.2, 'longitude': 80.2}
+    data = provider.roads((12.98, 80.18, 13.22, 80.22), 'walk', source, destination)
+    assert data['_smartTrafficCoverage'] == 'long-trip corridor'
+    assert queries[0].count('around:2200') > 2
+    assert 'footway' in queries[0] and 'motorway' not in queries[0]
 
 
 @pytest.mark.parametrize('mode', ['car', 'two_wheeler', 'walk'])
@@ -74,7 +98,7 @@ def test_trip_mode_reaches_graph_and_response(mode, monkeypatch):
     import app.real_map.api as api
     monkeypatch.setattr(api, '_service', None)
     seen = []
-    def roads(bbox, transport_mode):
+    def roads(bbox, transport_mode, source=None, destination=None, compact=False):
         seen.append(transport_mode)
         return snapshot(way(1, [1, 2]), way(2, [2, 4]))
     monkeypatch.setattr(api.providers, 'roads', roads)
