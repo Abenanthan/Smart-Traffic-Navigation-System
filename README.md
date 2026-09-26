@@ -49,6 +49,20 @@ npm run dev
 
 Then open **http://localhost:5173**.
 
+### Standalone Desktop & Rule-Based Modules
+
+```bash
+# Modular Rule-Based Engine (SM)
+python SM/main.py            # Interactive CLI
+python SM/test_cases.py      # Test cases (paths, unreachable goals, node validation)
+python SM/test_rules.py       # Test graph generation
+
+# Standalone Desktop Visualizers (Smart_Navigation)
+python Smart_Navigation/ucs_navigation_ui.py      # Tkinter Canvas UI
+python Smart_Navigation/ucs_navigation_matplot.py # Matplotlib + Tkinter interactive graph
+python Smart_Navigation/ucs_navigation.py         # Baseline UCS CLI
+```
+
 ---
 
 ## The six modules
@@ -66,6 +80,19 @@ Each module in the specification is one file. All six work without the interface
 
 `api.py` and the whole of `frontend/` are presentation. They contain no routing logic:
 every decision is made in Python and arrives at the browser already decided.
+
+### Additional Rule-Based & Standalone Modules
+
+#### 1. Modular Rule-Based UCS Engine (`SM/`)
+- [`SM/road_rules.py`](SM/road_rules.py): Defines explicit road rule tuples `(Start, End, Cost)` and builds dynamic graph representations (`build_graph`).
+- [`SM/ucs.py`](SM/ucs.py): Implementation of Uniform Cost Search tracking step execution, cost accumulation, and visited sets.
+- [`SM/main.py`](SM/main.py): Terminal interface for input processing, validation, and UCS execution.
+- [`SM/test_cases.py`](SM/test_cases.py) & [`SM/test_rules.py`](SM/test_rules.py): Test suites verifying optimal path generation, unreachable goals, and node validation.
+
+#### 2. Standalone Desktop Visualizers (`Smart_Navigation/`)
+- [`Smart_Navigation/ucs_navigation_matplot.py`](Smart_Navigation/ucs_navigation_matplot.py): Matplotlib & Tkinter interactive graph viewer with dynamic path highlighting.
+- [`Smart_Navigation/ucs_navigation_ui.py`](Smart_Navigation/ucs_navigation_ui.py): Lightweight Tkinter canvas interface rendering graph nodes and weighted edges.
+- [`Smart_Navigation/ucs_navigation.py`](Smart_Navigation/ucs_navigation.py): Standalone CLI demonstration of UCS routing.
 
 ---
 
@@ -137,9 +164,20 @@ creates a second, dynamic one.
 ```
 Smart Traffic Navigation Sysytem/
 ├── README.md
+├── REAL_MAP_NAVIGATION.md
 ├── run_backend.bat  /  run_frontend.bat
 ├── docs/
 │   └── PROJECT_REPORT.md          full report (21 sections)
+├── SM/                            Modular rule-based UCS engine
+│   ├── main.py                    Interactive CLI navigation
+│   ├── ucs.py                     UCS algorithm implementation
+│   ├── road_rules.py              Road rules & dynamic graph builder
+│   ├── test_cases.py              Unit test suite (path cost, unreachable goals)
+│   └── test_rules.py              Graph generation test runner
+├── Smart_Navigation/              Standalone desktop GUI visualizers
+│   ├── ucs_navigation_matplot.py  Matplotlib + Tkinter interactive graph view
+│   ├── ucs_navigation_ui.py       Tkinter canvas UI visualizer
+│   └── ucs_navigation.py          Standalone UCS CLI
 ├── backend/
 │   ├── requirements.txt
 │   ├── demo_cli.py                the whole system, in the terminal
