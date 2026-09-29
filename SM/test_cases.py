@@ -13,15 +13,27 @@ test_cases = [
     ("A", "B"),
     ("A", "D"),
     ("A", "A"),
-    ("E", "A")
+    ("E", "A"),
+    ("Z", "E")
 ]
 
-for start, goal in test_cases:
-    status, cost, path = ucs(graph, start, goal)
 
+
+for start, goal in test_cases:
     print("\n--------------------")
     print("Start:", start)
     print("Goal:", goal)
+
+    if start not in graph:
+        print("Invalid start node!")
+        continue
+
+    if goal not in graph:
+        print("Invalid goal node!")
+        continue
+
+    status, cost, path = ucs(graph, start, goal)
+
     print("Status:", status)
 
     if status == "Goal Found":
@@ -29,3 +41,16 @@ for start, goal in test_cases:
         print("Total Cost:", cost)
     else:
         print("No path exists.")
+
+'''disconnected_graph = {
+    "A": [("B", 4)],
+    "B": [("A", 4)],
+    "C": [("D", 3)],
+    "D": [("C", 3)]
+}
+
+status, cost, path = ucs(disconnected_graph, "A", "D")
+
+print("Status:", status)
+print("Cost:", cost)
+print("Path:", path)'''

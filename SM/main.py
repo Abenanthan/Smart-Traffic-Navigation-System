@@ -38,13 +38,14 @@ graph = {
 start_node = input("Enter start node: ").upper()
 goal_node = input("Enter goal node: ").upper()
 
+if start_node not in graph:
+    print("Invalid start node!")
 
-# Run UCS
-status, cost, path = ucs(
-    graph,
-    start_node,
-    goal_node
-)
+elif goal_node not in graph:
+    print("Invalid goal node!")
+
+else:
+    status, cost, path = ucs(graph,start_node,goal_node)
 
 
 # Display result
