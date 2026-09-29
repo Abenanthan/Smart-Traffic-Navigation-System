@@ -1,37 +1,8 @@
 from ucs import ucs
-
+from road_rules import ROAD_RULES, build_graph
 
 # Weighted graph
-graph = {
-    "A": [
-        ("B", 4),
-        ("C", 2)
-    ],
-
-    "B": [
-        ("A", 4),
-        ("D", 5),
-        ("E", 10)
-    ],
-
-    "C": [
-        ("A", 2),
-        ("D", 3),
-        ("E", 8)
-    ],
-
-    "D": [
-        ("B", 5),
-        ("C", 3),
-        ("E", 2)
-    ],
-
-    "E": [
-        ("B", 10),
-        ("C", 8),
-        ("D", 2)
-    ]
-}
+graph = build_graph(ROAD_RULES)
 
 
 # Get input
