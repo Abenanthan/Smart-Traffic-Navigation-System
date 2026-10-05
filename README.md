@@ -190,8 +190,6 @@ Smart Traffic Navigation Sysytem/
 
 Full documentation, including the AI problem formulation, pseudocode, activity diagrams.
 
-
-
 ---
 
 ## Real Map Navigations
