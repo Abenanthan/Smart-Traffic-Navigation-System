@@ -2,23 +2,17 @@ import tkinter as tk
 from tkinter import ttk
 
 from ucs import ucs
-from road_rules import ROAD_RULES, build_graph
+from road_rules import build_graph
+from graph_scenarios import GRAPH_SCENARIOS
 
 
 # ============================================================
-# GRAPH
-# ============================================================
-
-graph = build_graph(ROAD_RULES)
-
-
-# ============================================================
-# WINDOW
+# MAIN WINDOW
 # ============================================================
 
 root = tk.Tk()
 root.title("Smart Traffic Navigation System")
-root.geometry("900x650")
+root.geometry("1000x700")
 root.resizable(False, False)
 
 
@@ -40,7 +34,12 @@ title.pack(pady=15)
 # ============================================================
 
 main_frame = tk.Frame(root)
-main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+main_frame.pack(
+    fill="both",
+    expand=True,
+    padx=20,
+    pady=10
+)
 
 
 # ============================================================
@@ -51,35 +50,60 @@ graph_frame = tk.LabelFrame(
     main_frame,
     text="Road Network",
     font=("Arial", 13, "bold"),
-    width=550,
-    height=500
+    width=620,
+    height=550
 )
 
-graph_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
+graph_frame.pack(
+    side="left",
+    fill="both",
+    expand=True,
+    padx=(0, 10)
+)
+
 graph_frame.pack_propagate(False)
 
 
 canvas = tk.Canvas(
     graph_frame,
-    width=520,
-    height=450,
+    width=580,
+    height=500,
     bg="white"
 )
 
-canvas.pack(padx=10, pady=10)
+canvas.pack(
+    padx=10,
+    pady=10
+)
 
 
 # ============================================================
-# NODE POSITIONS
+# CONTROL FRAME
 # ============================================================
 
-positions = {
-    "A": (100, 220),
-    "B": (250, 100),
-    "C": (250, 340),
-    "D": (400, 220),
-    "E": (480, 380)
-}
+control_frame = tk.LabelFrame(
+    main_frame,
+    text="Navigation",
+    font=("Arial", 13, "bold"),
+    width=300,
+    height=550
+)
+
+control_frame.pack(
+    side="right",
+    fill="both",
+    padx=(10, 0)
+)
+
+control_frame.pack_propagate(False)
+
+
+# ============================================================
+# CURRENT GRAPH DATA
+# ============================================================
+
+current_graph = {}
+current_positions = {}
 
 
 # ============================================================
@@ -90,50 +114,81 @@ def draw_graph():
 
     canvas.delete("all")
 
-    # Draw roads
+    if not current_graph:
+        return
+
     drawn_edges = set()
 
-    for start, end, cost in ROAD_RULES:
+    # --------------------------------------------------------
+    # Draw roads
+    # --------------------------------------------------------
 
-        edge = tuple(sorted((start, end)))
+    for start, neighbors in current_graph.items():
 
-        if edge in drawn_edges:
+        for end, cost in neighbors:
+
+            edge = tuple(sorted((start, end)))
+
+            if edge in drawn_edges:
+                continue
+
+            drawn_edges.add(edge)
+
+            if start not in current_positions:
+                continue
+
+            if end not in current_positions:
+                continue
+
+            x1, y1 = current_positions[start]
+            x2, y2 = current_positions[end]
+
+            # Road
+            canvas.create_line(
+                x1,
+                y1,
+                x2,
+                y2,
+                width=3,
+                fill="gray"
+            )
+
+            # Cost label position
+            mid_x = (x1 + x2) / 2
+            mid_y = (y1 + y2) / 2
+
+            canvas.create_rectangle(
+                mid_x - 13,
+                mid_y - 11,
+                mid_x + 13,
+                mid_y + 11,
+                fill="white",
+                outline=""
+            )
+
+            canvas.create_text(
+                mid_x,
+                mid_y,
+                text=str(cost),
+                font=("Arial", 11, "bold")
+            )
+
+    # --------------------------------------------------------
+    # Draw nodes
+    # --------------------------------------------------------
+
+    for node in current_graph:
+
+        if node not in current_positions:
             continue
 
-        drawn_edges.add(edge)
-
-        x1, y1 = positions[start]
-        x2, y2 = positions[end]
-
-        canvas.create_line(
-            x1,
-            y1,
-            x2,
-            y2,
-            width=3,
-            fill="gray"
-        )
-
-        # Cost position
-        mid_x = (x1 + x2) / 2
-        mid_y = (y1 + y2) / 2
-
-        canvas.create_text(
-            mid_x,
-            mid_y - 10,
-            text=str(cost),
-            font=("Arial", 11, "bold"),
-            fill="black"
-        )
-
-    # Draw nodes
-    for node, (x, y) in positions.items():
+        x, y = current_positions[node]
 
         canvas.create_oval(
-            x - 25,
-            y - 25,
-            x + 25,
-            y + 25,
+            x - 28,
+            y - 28,
+            x + 28,
+            y + 28,
             fill="lightblue",
             outline="black",
             width=2
@@ -147,23 +202,101 @@ def draw_graph():
         )
 
 
-draw_graph()
+# ============================================================
+# HIGHLIGHT OPTIMAL ROUTE
+# ============================================================
+
+def highlight_route(path):
+
+    draw_graph()
+
+    # --------------------------------------------------------
+    # Highlight route roads
+    # --------------------------------------------------------
+
+    for i in range(len(path) - 1):
+
+        start = path[i]
+        end = path[i + 1]
+
+        if start not in current_positions:
+            continue
+
+        if end not in current_positions:
+            continue
+
+        x1, y1 = current_positions[start]
+        x2, y2 = current_positions[end]
+
+        canvas.create_line(
+            x1,
+            y1,
+            x2,
+            y2,
+            width=7,
+            fill="red"
+        )
+
+    # --------------------------------------------------------
+    # Redraw nodes
+    # --------------------------------------------------------
+
+    for node in current_graph:
+
+        if node not in current_positions:
+            continue
+
+        x, y = current_positions[node]
+
+        if node in path:
+            fill_color = "lightgreen"
+        else:
+            fill_color = "lightblue"
+
+        canvas.create_oval(
+            x - 28,
+            y - 28,
+            x + 28,
+            y + 28,
+            fill=fill_color,
+            outline="black",
+            width=2
+        )
+
+        canvas.create_text(
+            x,
+            y,
+            text=node,
+            font=("Arial", 14, "bold")
+        )
 
 
 # ============================================================
-# CONTROL FRAME
+# GRAPH SCENARIO
 # ============================================================
 
-control_frame = tk.LabelFrame(
-    main_frame,
-    text="Navigation",
-    font=("Arial", 13, "bold"),
-    width=280,
-    height=500
+tk.Label(
+    control_frame,
+    text="Graph Scenario",
+    font=("Arial", 12)
+).pack(
+    pady=(25, 5)
 )
 
-control_frame.pack(side="right", fill="both", padx=(10, 0))
-control_frame.pack_propagate(False)
+
+scenario_combo = ttk.Combobox(
+    control_frame,
+    values=list(GRAPH_SCENARIOS.keys()),
+    state="readonly",
+    width=27
+)
+
+scenario_combo.pack(pady=5)
+
+
+scenario_combo.set(
+    list(GRAPH_SCENARIOS.keys())[0]
+)
 
 
 # ============================================================
@@ -174,18 +307,18 @@ tk.Label(
     control_frame,
     text="Start Location",
     font=("Arial", 12)
-).pack(pady=(30, 5))
+).pack(
+    pady=(25, 5)
+)
 
 
 start_combo = ttk.Combobox(
     control_frame,
-    values=list(graph.keys()),
     state="readonly",
-    width=18
+    width=20
 )
 
-start_combo.pack()
-start_combo.set("A")
+start_combo.pack(pady=5)
 
 
 # ============================================================
@@ -196,32 +329,34 @@ tk.Label(
     control_frame,
     text="Destination",
     font=("Arial", 12)
-).pack(pady=(25, 5))
+).pack(
+    pady=(20, 5)
+)
 
 
 goal_combo = ttk.Combobox(
     control_frame,
-    values=list(graph.keys()),
     state="readonly",
-    width=18
+    width=20
 )
 
-goal_combo.pack()
-goal_combo.set("E")
+goal_combo.pack(pady=5)
 
 
 # ============================================================
-# RESULT LABELS
+# RESULTS
 # ============================================================
 
 route_label = tk.Label(
     control_frame,
     text="Optimal Route: -",
     font=("Arial", 11),
-    wraplength=230
+    wraplength=260
 )
 
-route_label.pack(pady=(40, 8))
+route_label.pack(
+    pady=(35, 8)
+)
 
 
 cost_label = tk.Label(
@@ -243,51 +378,62 @@ status_label.pack(pady=8)
 
 
 # ============================================================
-# HIGHLIGHT OPTIMAL ROUTE
+# UPDATE SCENARIO
 # ============================================================
 
-def highlight_route(path):
+def update_scenario(event=None):
 
-    # Redraw normal graph first
+    global current_graph
+    global current_positions
+
+    selected_scenario = scenario_combo.get()
+
+    # Get selected scenario
+    scenario = GRAPH_SCENARIOS[selected_scenario]
+
+    # Get roads
+    road_rules = scenario["roads"]
+
+    # Get node positions
+    current_positions = scenario["positions"]
+
+    # Build graph
+    current_graph = build_graph(road_rules)
+
+    # Get available nodes
+    nodes = list(current_graph.keys())
+
+    # Update start dropdown
+    start_combo["values"] = nodes
+
+    # Update goal dropdown
+    goal_combo["values"] = nodes
+
+    # Set default start
+    if nodes:
+        start_combo.set(nodes[0])
+
+    # Set default destination
+    if len(nodes) > 1:
+        goal_combo.set(nodes[-1])
+    elif nodes:
+        goal_combo.set(nodes[0])
+
+    # Reset result
+    route_label.config(
+        text="Optimal Route: -"
+    )
+
+    cost_label.config(
+        text="Total Cost: -"
+    )
+
+    status_label.config(
+        text="Status: -"
+    )
+
+    # Draw selected scenario
     draw_graph()
-
-    # Highlight route edges
-    for i in range(len(path) - 1):
-
-        start = path[i]
-        end = path[i + 1]
-
-        x1, y1 = positions[start]
-        x2, y2 = positions[end]
-
-        canvas.create_line(
-            x1,
-            y1,
-            x2,
-            y2,
-            width=7,
-            fill="red"
-        )
-
-    # Redraw nodes on top
-    for node, (x, y) in positions.items():
-
-        canvas.create_oval(
-            x - 25,
-            y - 25,
-            x + 25,
-            y + 25,
-            fill="lightblue",
-            outline="black",
-            width=2
-        )
-
-        canvas.create_text(
-            x,
-            y,
-            text=node,
-            font=("Arial", 14, "bold")
-        )
 
 
 # ============================================================
@@ -308,7 +454,7 @@ def find_route():
         return
 
     status, cost, path = ucs(
-        graph,
+        current_graph,
         start_node,
         goal_node
     )
@@ -316,7 +462,8 @@ def find_route():
     if status == "Goal Found":
 
         route_label.config(
-            text="Optimal Route: " + " → ".join(path)
+            text="Optimal Route:\n" +
+                 " → ".join(path)
         )
 
         cost_label.config(
@@ -347,7 +494,7 @@ def find_route():
 
 
 # ============================================================
-# BUTTON
+# FIND ROUTE BUTTON
 # ============================================================
 
 find_button = tk.Button(
@@ -355,10 +502,27 @@ find_button = tk.Button(
     text="FIND ROUTE",
     command=find_route,
     font=("Arial", 12, "bold"),
-    width=18
+    width=20
 )
 
-find_button.pack(pady=30)
+find_button.pack(pady=25)
+
+
+# ============================================================
+# SCENARIO CHANGE EVENT
+# ============================================================
+
+scenario_combo.bind(
+    "<<ComboboxSelected>>",
+    update_scenario
+)
+
+
+# ============================================================
+# LOAD FIRST SCENARIO
+# ============================================================
+
+update_scenario()
 
 
 # ============================================================
